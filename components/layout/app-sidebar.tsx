@@ -13,7 +13,7 @@ const navItems = [
   { href: "/properties", label: "Properties", icon: Building2 },
   { href: "/transactions", label: "Transactions", icon: Receipt, hasBadge: true },
   { href: "/reports", label: "Reports", icon: BarChart2 },
-  { href: "/settings", label: "Settings", icon: Settings, comingSoon: true },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 type Props = { needsReviewCount: number };
@@ -27,20 +27,18 @@ export function AppSidebar({ needsReviewCount }: Props) {
         <AppLogo />
       </div>
       <nav className="flex-1 px-2 py-4 space-y-0.5">
-        {navItems.map(({ href, label, icon: Icon, comingSoon, hasBadge }) => {
+        {navItems.map(({ href, label, icon: Icon, hasBadge }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           const badge = hasBadge && needsReviewCount > 0 ? needsReviewCount : null;
           return (
             <Link
               key={href}
-              href={comingSoon ? "#" : href}
-              aria-disabled={comingSoon}
+              href={href}
               className={cn(
                 "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
                 active
                   ? "bg-primary text-primary-foreground font-medium"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                comingSoon && "opacity-40 pointer-events-none"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
             >
               <Icon className="size-4 shrink-0" />
@@ -48,11 +46,6 @@ export function AppSidebar({ needsReviewCount }: Props) {
               {badge !== null && (
                 <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
                   {badge > 99 ? "99+" : badge}
-                </span>
-              )}
-              {comingSoon && (
-                <span className="ml-auto text-[9px] font-semibold tracking-wide uppercase text-muted-foreground/60">
-                  Soon
                 </span>
               )}
             </Link>
@@ -71,21 +64,9 @@ export function MobileBottomNav({ needsReviewCount }: Props) {
       className="md:hidden fixed bottom-0 inset-x-0 z-50 flex border-t bg-card/95 backdrop-blur-sm"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      {navItems.map(({ href, label, icon: Icon, hasBadge, comingSoon }) => {
+      {navItems.map(({ href, label, icon: Icon, hasBadge }) => {
         const active = pathname === href || pathname.startsWith(href + "/");
         const badge = hasBadge && needsReviewCount > 0 ? needsReviewCount : null;
-
-        if (comingSoon) {
-          return (
-            <div
-              key={href}
-              className="relative flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium text-muted-foreground/40 cursor-not-allowed"
-            >
-              <Icon className="size-5" />
-              {label}
-            </div>
-          );
-        }
 
         return (
           <Link
