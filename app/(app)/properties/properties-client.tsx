@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Building2, MapPin, Plus, ChevronDown } from "lucide-react";
+import { Building2, MapPin, Plus, ChevronDown, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,11 +19,13 @@ type Property = {
   unitCount: number;
   totalExpenses: number;
   imageUrl: string | null;
+  sharedPermission?: string;
 };
 
 type Props = {
   activeProperties: Property[];
   archivedProperties: Property[];
+  sharedProperties?: Property[];
 };
 
 function PropertyCard({ property }: { property: Property }) {
@@ -85,7 +87,7 @@ export function PropertiesSkeleton() {
   );
 }
 
-export function PropertiesClient({ activeProperties, archivedProperties }: Props) {
+export function PropertiesClient({ activeProperties, archivedProperties, sharedProperties = [] }: Props) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
@@ -100,7 +102,7 @@ export function PropertiesClient({ activeProperties, archivedProperties }: Props
         </Button>
       </div>
 
-      {activeProperties.length === 0 ? (
+      {activeProperties.length === 0 && sharedProperties.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center gap-4 border rounded-lg bg-muted/30">
           <Building2 className="size-12 text-muted-foreground" />
           <div>
@@ -115,6 +117,26 @@ export function PropertiesClient({ activeProperties, archivedProperties }: Props
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {activeProperties.map((p) => <PropertyCard key={p.id} property={p} />)}
+        </div>
+      )}
+
+      {sharedProperties.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Users className="size-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold text-muted-foreground">Shared with me</h2>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {sharedProperties.map((p) => (
+              <div key={p.id} className="relative">
+                <PropertyCard property={p} />
+                <Badge variant="secondary" className="absolute top-3 left-3 text-xs gap-1">
+                  <Users className="size-2.5" />
+                  {p.sharedPermission === "edit" ? "Can Edit" : "View Only"}
+                </Badge>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

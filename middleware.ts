@@ -9,9 +9,10 @@ export default auth((req) => {
 });
 
 export const config = {
-  // Protect all app routes and API routes (except NextAuth itself)
+  // Protect app routes, invite routes, and API routes (except NextAuth itself)
   matcher: [
     "/(app)/:path*",
+    "/invite/:path*",
     "/api/((?!auth/).*)",
   ],
 };

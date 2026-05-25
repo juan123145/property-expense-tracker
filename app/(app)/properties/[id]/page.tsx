@@ -1,21 +1,47 @@
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { properties, units, transactions, transactionAttachments } from "@/db/schema";
-import { eq, and, sum, desc, asc } from "drizzle-orm";
+import { properties, units, transactions, transactionAttachments, propertyShares } from "@/db/schema";
+import { eq, and, sum, desc, asc, or } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PropertyDetailClient } from "@/components/properties/property-detail-client";
+import { PropertyShareSheet } from "@/components/properties/property-share-sheet";
 import { TransactionsTableSection } from "@/app/(app)/transactions/transactions-client";
 
 async function getProperty(id: string, userId: string) {
+  // Owner OR accepted share
   const [property] = await db
-    .select()
+    .select({
+      id: properties.id, userId: properties.userId, name: properties.name,
+      address: properties.address, city: properties.city, state: properties.state,
+      zip: properties.zip, type: properties.type, isArchived: properties.isArchived,
+      notes: properties.notes, imageUrl: properties.imageUrl, createdAt: properties.createdAt,
+    })
     .from(properties)
-    .where(and(eq(properties.id, id), eq(properties.userId, userId)))
+    .where(
+      and(
+        eq(properties.id, id),
+        or(
+          eq(properties.userId, userId),
+          and(
+            eq(propertyShares.sharedWithUserId, userId),
+            eq(propertyShares.status, "accepted"),
+          )
+        )
+      )
+    )
+    .leftJoin(propertyShares, eq(propertyShares.propertyId, properties.id))
     .limit(1);
   return property ?? null;
+}
+
+async function getPropertyShares(propertyId: string) {
+  return db
+    .select({ id: propertyShares.id, invitedEmail: propertyShares.invitedEmail, permission: propertyShares.permission, status: propertyShares.status })
+    .from(propertyShares)
+    .where(and(eq(propertyShares.propertyId, propertyId), or(eq(propertyShares.status, "pending"), eq(propertyShares.status, "accepted"))));
 }
 
 async function getUnits(propertyId: string) {
@@ -113,6 +139,9 @@ export default async function PropertyDetailPage({ params }: PageProps) {
 
   if (!property) notFound();
 
+  const isOwner = property.userId === user.id;
+  const currentShares = isOwner ? await getPropertyShares(id) : [];
+
   const location = [property.city, property.state].filter(Boolean).join(", ");
   const propertyForForm = [{ id: property.id, name: property.name }];
   const unitsForForm = unitList.map((u) => ({
@@ -154,7 +183,16 @@ export default async function PropertyDetailPage({ params }: PageProps) {
             </div>
           )}
         </div>
-        <PropertyDetailClient property={property} units={unitList} />
+        <div className="flex items-center gap-2 shrink-0">
+          {isOwner && (
+            <PropertyShareSheet
+              propertyId={property.id}
+              propertyName={property.name}
+              currentShares={currentShares}
+            />
+          )}
+          <PropertyDetailClient property={property} units={unitList} />
+        </div>
       </div>
 
       {/* Summary bar */}

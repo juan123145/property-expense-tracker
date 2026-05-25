@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { properties, units, transactions } from "@/db/schema";
-import { eq, and, count, sum, sql } from "drizzle-orm";
+import { properties, units, transactions, propertyShares } from "@/db/schema";
+import { eq, and, count, sum, sql, inArray } from "drizzle-orm";
 import { PropertiesClient } from "./properties-client";
 
 async function getPropertiesWithStats(userId: string, includeArchived = false) {
@@ -57,12 +57,38 @@ async function getPropertiesWithStats(userId: string, includeArchived = false) {
   }));
 }
 
+async function getSharedProperties(userId: string) {
+  const shares = await db
+    .select({ propertyId: propertyShares.propertyId, permission: propertyShares.permission })
+    .from(propertyShares)
+    .where(and(eq(propertyShares.sharedWithUserId, userId), eq(propertyShares.status, "accepted")));
+
+  if (shares.length === 0) return [];
+
+  const ids = shares.map((s) => s.propertyId);
+  const permMap = Object.fromEntries(shares.map((s) => [s.propertyId, s.permission]));
+
+  const rows = await db
+    .select({ id: properties.id, name: properties.name, address: properties.address, city: properties.city, state: properties.state, type: properties.type, isArchived: properties.isArchived, imageUrl: properties.imageUrl, createdAt: properties.createdAt })
+    .from(properties)
+    .where(and(inArray(properties.id, ids), eq(properties.isArchived, false)));
+
+  return rows.map((p) => ({ ...p, unitCount: 0, totalExpenses: 0, sharedPermission: permMap[p.id] ?? "view" }));
+}
+
 export default async function PropertiesPage() {
   const user = await requireAuth();
-  const [activeProps, archivedProps] = await Promise.all([
+  const [activeProps, archivedProps, sharedProps] = await Promise.all([
     getPropertiesWithStats(user.id, false),
     getPropertiesWithStats(user.id, true).then((all) => all.filter((p) => p.isArchived)),
+    getSharedProperties(user.id),
   ]);
 
-  return <PropertiesClient activeProperties={activeProps} archivedProperties={archivedProps} />;
+  return (
+    <PropertiesClient
+      activeProperties={activeProps}
+      archivedProperties={archivedProps}
+      sharedProperties={sharedProps}
+    />
+  );
 }

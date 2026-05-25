@@ -7,6 +7,7 @@ import {
   decimal,
   integer,
   timestamp,
+  unique,
 } from "drizzle-orm/pg-core";
 
 export const properties = pgTable("properties", {
@@ -55,6 +56,19 @@ export const transactions = pgTable("transactions", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
+
+export const propertyShares = pgTable("property_shares", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  propertyId: uuid("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  invitedEmail: text("invited_email").notNull(),
+  sharedWithUserId: text("shared_with_user_id"),
+  permission: text("permission").notNull(),       // 'view' | 'edit'
+  status: text("status").notNull().default("pending"), // 'pending' | 'accepted' | 'revoked'
+  inviteToken: text("invite_token").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+}, (t) => [unique("property_shares_property_email_unique").on(t.propertyId, t.invitedEmail)]);
 
 export const transactionAttachments = pgTable("transaction_attachments", {
   id: uuid("id").primaryKey().defaultRandom(),
