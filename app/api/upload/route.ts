@@ -6,6 +6,20 @@ import { PDFDocument } from "pdf-lib";
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
+function validateMagicBytes(buf: Uint8Array, contentType: string): boolean {
+  const b = buf;
+  if (contentType === "image/jpeg")
+    return b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF;
+  if (contentType === "image/png")
+    return b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47;
+  if (contentType === "image/webp")
+    return b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+           b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50;
+  if (contentType === "application/pdf")
+    return b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46;
+  return false;
+}
+
 function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_").toLowerCase();
 }
@@ -53,7 +67,11 @@ export async function POST(req: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let buffer: Uint8Array = new Uint8Array((await file.arrayBuffer()) as any);
-  let contentType = file.type;
+  const contentType = file.type;
+
+  if (!validateMagicBytes(buffer, contentType)) {
+    return NextResponse.json({ error: "File content does not match declared type" }, { status: 400 });
+  }
 
   if (contentType === "application/pdf") {
     buffer = await optimizePdf(buffer);

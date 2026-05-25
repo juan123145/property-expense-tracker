@@ -46,36 +46,41 @@ export async function createTransaction(_prev: unknown, formData: FormData) {
     hasAttachment: newAttachments.length > 0,
   });
 
-  const [tx] = await db.insert(transactions).values({
-    userId: user.id,
-    date,
-    amount: parseFloat(amountRaw).toFixed(2),
-    type,
-    payee: payeeRaw || null,
-    category: (formData.get("category") as string) || null,
-    subcategory: (formData.get("subcategory") as string) || null,
-    propertyId: parseOptionalUuid(formData.get("propertyId") as string),
-    unitId: parseOptionalUuid(formData.get("unitId") as string),
-    notes: (formData.get("notes") as string) || null,
-    ocrConfidence: ocrConfidence !== null ? String(ocrConfidence) : null,
-    needsReview,
-  }).returning({ id: transactions.id });
+  try {
+    const [tx] = await db.insert(transactions).values({
+      userId: user.id,
+      date,
+      amount: parseFloat(amountRaw).toFixed(2),
+      type,
+      payee: payeeRaw || null,
+      category: (formData.get("category") as string) || null,
+      subcategory: (formData.get("subcategory") as string) || null,
+      propertyId: parseOptionalUuid(formData.get("propertyId") as string),
+      unitId: parseOptionalUuid(formData.get("unitId") as string),
+      notes: (formData.get("notes") as string) || null,
+      ocrConfidence: ocrConfidence !== null ? String(ocrConfidence) : null,
+      needsReview,
+    }).returning({ id: transactions.id });
 
-  if (newAttachments.length > 0) {
-    await db.insert(transactionAttachments).values(
-      newAttachments.map((a, i) => ({
-        transactionId: tx.id,
-        url: a.url,
-        name: a.name ?? null,
-        sizeKb: a.sizeKb ?? null,
-        position: i,
-      }))
-    );
+    if (newAttachments.length > 0) {
+      await db.insert(transactionAttachments).values(
+        newAttachments.map((a, i) => ({
+          transactionId: tx.id,
+          url: a.url,
+          name: a.name ?? null,
+          sizeKb: a.sizeKb ?? null,
+          position: i,
+        }))
+      );
+    }
+
+    revalidatePath("/transactions");
+    revalidatePath("/properties");
+    return { success: true };
+  } catch (err) {
+    console.error("createTransaction:", err);
+    return { error: "Failed to save transaction. Please try again." };
   }
-
-  revalidatePath("/transactions");
-  revalidatePath("/properties");
-  return { success: true };
 }
 
 export async function updateTransaction(_prev: unknown, formData: FormData) {
@@ -154,27 +159,32 @@ export async function updateTransaction(_prev: unknown, formData: FormData) {
     hasAttachment: remainingAttachments > 0,
   });
 
-  await db
-    .update(transactions)
-    .set({
-      date,
-      amount: parseFloat(amountRaw).toFixed(2),
-      type,
-      payee: payeeRaw || null,
-      category: (formData.get("category") as string) || null,
-      subcategory: (formData.get("subcategory") as string) || null,
-      propertyId: parseOptionalUuid(formData.get("propertyId") as string),
-      unitId: parseOptionalUuid(formData.get("unitId") as string),
-      notes: (formData.get("notes") as string) || null,
-      ocrConfidence: ocrConfidence !== null ? String(ocrConfidence) : null,
-      needsReview,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(transactions.id, id), eq(transactions.userId, user.id)));
+  try {
+    await db
+      .update(transactions)
+      .set({
+        date,
+        amount: parseFloat(amountRaw).toFixed(2),
+        type,
+        payee: payeeRaw || null,
+        category: (formData.get("category") as string) || null,
+        subcategory: (formData.get("subcategory") as string) || null,
+        propertyId: parseOptionalUuid(formData.get("propertyId") as string),
+        unitId: parseOptionalUuid(formData.get("unitId") as string),
+        notes: (formData.get("notes") as string) || null,
+        ocrConfidence: ocrConfidence !== null ? String(ocrConfidence) : null,
+        needsReview,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(transactions.id, id), eq(transactions.userId, user.id)));
 
-  revalidatePath("/transactions");
-  revalidatePath("/properties");
-  return { success: true };
+    revalidatePath("/transactions");
+    revalidatePath("/properties");
+    return { success: true };
+  } catch (err) {
+    console.error("updateTransaction:", err);
+    return { error: "Failed to update transaction. Please try again." };
+  }
 }
 
 export async function deleteTransaction(id: string) {
