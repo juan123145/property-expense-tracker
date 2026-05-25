@@ -13,7 +13,6 @@ const ACCEPTED = {
   "application/pdf": [".pdf"],
 };
 const MAX_SIZE = 10 * 1024 * 1024;
-const COMPRESS_THRESHOLD = 250 * 1024;
 const MAX_FILES = 3;
 
 function formatBytes(bytes: number): string {
@@ -219,16 +218,19 @@ export function ReceiptUploadZone({
   const handleFile = useCallback(
     async (raw: File) => {
       setError(null);
-      if (raw.type.startsWith("image/") && raw.size > COMPRESS_THRESHOLD) {
+      if (raw.type.startsWith("image/")) {
         setCompressing(true);
         compressingRef.current = true;
         try {
           const compressed = await imageCompression(raw, {
-            maxSizeMB: 0.25,
-            maxWidthOrHeight: 2048,
+            maxSizeMB: 0.1,          // 100 KB target
+            maxWidthOrHeight: 1920,
             useWebWorker: true,
+            fileType: "image/webp",  // WebP gives 25–50% better ratio than JPEG/PNG
+            initialQuality: 0.85,
           });
-          onFilesChange([...files, new File([compressed], raw.name, { type: compressed.type })]);
+          const webpName = raw.name.replace(/\.(jpe?g|png|gif|bmp|webp)$/i, ".webp");
+          onFilesChange([...files, new File([compressed], webpName, { type: "image/webp" })]);
         } catch {
           onFilesChange([...files, raw]);
         } finally {
@@ -236,6 +238,7 @@ export function ReceiptUploadZone({
           compressingRef.current = false;
         }
       } else {
+        // PDFs go to the server as-is; compression happens server-side in /api/upload
         onFilesChange([...files, raw]);
       }
     },

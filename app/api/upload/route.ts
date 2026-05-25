@@ -1,12 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { uploadToR2 } from "@/lib/r2";
+import { PDFDocument } from "pdf-lib";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
 function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_").toLowerCase();
+}
+
+async function optimizePdf(input: Uint8Array): Promise<Uint8Array> {
+  try {
+    const doc = await PDFDocument.load(input, { ignoreEncryption: true });
+    // Remove creator/producer metadata to reduce size
+    doc.setCreator("");
+    doc.setProducer("");
+    // useObjectStreams compresses cross-reference tables — best lossless reduction available
+    const optimized = await doc.save({ useObjectStreams: true, addDefaultPage: false });
+    // Only use optimized version if it's actually smaller
+    return optimized.byteLength < input.byteLength ? optimized : input;
+  } catch {
+    return input;
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -32,8 +48,15 @@ export async function POST(req: NextRequest) {
   const safeName = sanitizeFilename(file.name);
   const key = `receipts/${session.user.id}/${timestamp}-${safeName}`;
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const url = await uploadToR2(key, buffer, file.type);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let buffer: Uint8Array = new Uint8Array((await file.arrayBuffer()) as any);
+  let contentType = file.type;
+
+  if (contentType === "application/pdf") {
+    buffer = await optimizePdf(buffer);
+  }
+
+  const url = await uploadToR2(key, buffer, contentType);
   const sizeKb = Math.round(buffer.byteLength / 1024);
 
   return NextResponse.json({ url, filename: file.name, sizeKb });
