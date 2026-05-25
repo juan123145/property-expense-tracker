@@ -1,12 +1,13 @@
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { properties, units, transactions } from "@/db/schema";
-import { eq, and, sum } from "drizzle-orm";
+import { eq, and, sum, desc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PropertyDetailClient } from "./property-detail-client";
+import { TransactionsTableSection } from "@/app/(app)/transactions/transactions-client";
 
 async function getProperty(id: string, userId: string) {
   const [property] = await db
@@ -19,6 +20,37 @@ async function getProperty(id: string, userId: string) {
 
 async function getUnits(propertyId: string) {
   return db.select().from(units).where(eq(units.propertyId, propertyId));
+}
+
+async function getPropertyTransactions(propertyId: string, userId: string) {
+  return db
+    .select({
+      id: transactions.id,
+      date: transactions.date,
+      amount: transactions.amount,
+      type: transactions.type,
+      payee: transactions.payee,
+      category: transactions.category,
+      subcategory: transactions.subcategory,
+      propertyId: transactions.propertyId,
+      unitId: transactions.unitId,
+      notes: transactions.notes,
+      attachmentUrl: transactions.attachmentUrl,
+      needsReview: transactions.needsReview,
+      propertyName: properties.name,
+      unitName: units.name,
+    })
+    .from(transactions)
+    .leftJoin(properties, eq(transactions.propertyId, properties.id))
+    .leftJoin(units, eq(transactions.unitId, units.id))
+    .where(
+      and(
+        eq(transactions.propertyId, propertyId),
+        eq(transactions.userId, userId),
+        eq(transactions.isDeleted, false)
+      )
+    )
+    .orderBy(desc(transactions.date), desc(transactions.createdAt));
 }
 
 async function getSummary(propertyId: string, userId: string) {
@@ -45,15 +77,22 @@ export default async function PropertyDetailPage({ params }: PageProps) {
   const { id } = await params;
   const user = await requireAuth();
 
-  const [property, unitList, summary] = await Promise.all([
+  const [property, unitList, summary, txList] = await Promise.all([
     getProperty(id, user.id),
     getUnits(id),
     getSummary(id, user.id),
+    getPropertyTransactions(id, user.id),
   ]);
 
   if (!property) notFound();
 
   const location = [property.city, property.state].filter(Boolean).join(", ");
+  const propertyForForm = [{ id: property.id, name: property.name }];
+  const unitsForForm = unitList.map((u) => ({
+    id: u.id,
+    propertyId: property.id,
+    name: u.name,
+  }));
 
   return (
     <div className="p-6 space-y-6">
@@ -120,12 +159,15 @@ export default async function PropertyDetailPage({ params }: PageProps) {
         )}
       </div>
 
-      {/* Transactions placeholder */}
+      {/* Transactions */}
       <div>
-        <h2 className="font-semibold mb-3">Transactions</h2>
-        <div className="rounded-lg border bg-muted/30 py-10 text-center text-sm text-muted-foreground">
-          Transaction table coming in Cycle 3.
-        </div>
+        <h2 className="font-semibold mb-3">Transactions ({txList.length})</h2>
+        <TransactionsTableSection
+          transactions={txList}
+          properties={propertyForForm}
+          allUnits={unitsForForm}
+          showAddButton={false}
+        />
       </div>
     </div>
   );
