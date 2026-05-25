@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect, useTransition } from "react";
 import {
   Plus, Paperclip, CheckCircle2, AlertTriangle, MoreHorizontal,
-  Pencil, Trash2, Receipt, Search, X, SlidersHorizontal, Filter,
+  Pencil, Trash2, Receipt, Search, X, SlidersHorizontal,
   RotateCcw, AlertCircle, MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -32,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DateRangePicker, type DateRangeValue, DATE_RANGE_ALL } from "@/components/ui/date-range-picker";
 import { AddTransactionSheet, type TransactionFormData } from "@/components/transactions/add-transaction-sheet";
 import { DeleteTransactionDialog, useDeleteDialog } from "@/components/transactions/delete-transaction-button";
 import { AttachmentViewer } from "@/components/transactions/attachment-viewer";
@@ -225,97 +226,23 @@ function TransactionCard({
   );
 }
 
-// ─── Filter panel ─────────────────────────────────────────────────────────────
+// ─── Filter state ─────────────────────────────────────────────────────────────
 
 type FilterState = {
   search: string;
   typeFilter: "all" | "income" | "expense";
   categoryFilter: string;
   propertyFilter: string;
-  dateFrom: string;
-  dateTo: string;
+  dateRange: DateRangeValue;
 };
 
-function FilterPanel({
-  state, onChange, onClear, properties, hasActive, open, onToggle,
-}: {
-  state: FilterState;
-  onChange: (patch: Partial<FilterState>) => void;
-  onClear: () => void;
-  properties: Property[];
-  hasActive: boolean;
-  open: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground pointer-events-none" />
-          <Input
-            placeholder="Search payee or notes…"
-            className="pl-8 h-9 text-sm"
-            value={state.search}
-            onChange={(e) => onChange({ search: e.target.value })}
-          />
-        </div>
-        <button
-          onClick={onToggle}
-          className={`inline-flex items-center gap-1.5 px-3 h-9 rounded-md border text-xs font-medium transition-colors ${
-            open || hasActive
-              ? "border-primary bg-primary/5 text-primary"
-              : "border-input bg-background text-muted-foreground hover:text-foreground hover:bg-muted"
-          }`}
-        >
-          <Filter className="size-3.5" />Filters
-          {hasActive && (
-            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] text-primary-foreground font-bold">
-              {[state.typeFilter !== "all", !!state.categoryFilter, !!state.propertyFilter, !!state.dateFrom, !!state.dateTo].filter(Boolean).length}
-            </span>
-          )}
-        </button>
-      </div>
-      {open && (
-        <div className="flex flex-wrap gap-2 items-center">
-          <div className="flex rounded-md border overflow-hidden h-9 text-xs shrink-0">
-            {(["all", "income", "expense"] as const).map((t) => (
-              <button
-                key={t}
-                className={`px-3 capitalize transition-colors ${state.typeFilter === t ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
-                onClick={() => onChange({ typeFilter: t })}
-              >
-                {t === "all" ? "All" : t}
-              </button>
-            ))}
-          </div>
-          <Select value={state.categoryFilter} onValueChange={(v) => onChange({ categoryFilter: v ?? "" })}>
-            <SelectTrigger className="w-[150px] h-9 text-xs"><SelectValue placeholder="All Categories" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">All Categories</SelectItem>
-              {CATEGORIES.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          {properties.length > 1 && (
-            <Select value={state.propertyFilter} onValueChange={(v) => onChange({ propertyFilter: v ?? "" })}>
-              <SelectTrigger className="w-[140px] h-9 text-xs"><SelectValue placeholder="All Properties" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">All Properties</SelectItem>
-                {properties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
-          <Input type="date" className="w-[130px] h-9 text-xs" value={state.dateFrom} onChange={(e) => onChange({ dateFrom: e.target.value })} title="From date" />
-          <Input type="date" className="w-[130px] h-9 text-xs" value={state.dateTo} onChange={(e) => onChange({ dateTo: e.target.value })} title="To date" />
-          {hasActive && (
-            <Button variant="ghost" size="sm" className="h-9 px-2 text-xs" onClick={onClear}>
-              <X className="size-3.5 mr-1" />Clear
-            </Button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+const DEFAULT_FILTERS: FilterState = {
+  search: "",
+  typeFilter: "all",
+  categoryFilter: "",
+  propertyFilter: "",
+  dateRange: DATE_RANGE_ALL,
+};
 
 // ─── Needs Review tab content ─────────────────────────────────────────────────
 
@@ -561,19 +488,18 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
   const [page, setPage] = useState(0);
   const { deleteId, openDelete, closeDelete } = useDeleteDialog();
   const [viewerTx, setViewerTx] = useState<TransactionRow | null>(null);
-  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const [filters, setFilters] = useState<FilterState>({
-    search: "", typeFilter: "all", categoryFilter: "", propertyFilter: "", dateFrom: "", dateTo: "",
-  });
+  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
 
   function patchFilters(patch: Partial<FilterState>) { setFilters((f) => ({ ...f, ...patch })); }
-  function clearFilters() { setFilters({ search: "", typeFilter: "all", categoryFilter: "", propertyFilter: "", dateFrom: "", dateTo: "" }); }
+  function clearFilters() { setFilters(DEFAULT_FILTERS); }
 
   const hasActiveFilters =
-    filters.search.trim() !== "" || filters.typeFilter !== "all" ||
-    filters.categoryFilter !== "" || filters.propertyFilter !== "" ||
-    filters.dateFrom !== "" || filters.dateTo !== "";
+    filters.search.trim() !== "" ||
+    filters.typeFilter !== "all" ||
+    filters.categoryFilter !== "" ||
+    filters.propertyFilter !== "" ||
+    filters.dateRange.preset !== "all";
 
   useEffect(() => { setPage(0); }, [filters]);
 
@@ -581,13 +507,18 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
     let r = transactions;
     if (filters.search.trim()) {
       const q = filters.search.toLowerCase();
-      r = r.filter((tx) => tx.payee?.toLowerCase().includes(q) || tx.notes?.toLowerCase().includes(q) || tx.category?.toLowerCase().includes(q));
+      r = r.filter((tx) =>
+        tx.payee?.toLowerCase().includes(q) ||
+        tx.notes?.toLowerCase().includes(q) ||
+        tx.category?.toLowerCase().includes(q)
+      );
     }
     if (filters.typeFilter !== "all") r = r.filter((tx) => tx.type === filters.typeFilter);
     if (filters.categoryFilter) r = r.filter((tx) => tx.category === filters.categoryFilter);
     if (filters.propertyFilter) r = r.filter((tx) => tx.propertyId === filters.propertyFilter);
-    if (filters.dateFrom) r = r.filter((tx) => tx.date >= filters.dateFrom);
-    if (filters.dateTo) r = r.filter((tx) => tx.date <= filters.dateTo);
+    if (filters.dateRange.preset !== "all") {
+      r = r.filter((tx) => tx.date >= filters.dateRange.start && tx.date <= filters.dateRange.end);
+    }
     return r;
   }, [transactions, filters]);
 
@@ -596,42 +527,58 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
 
   return (
     <>
-      {/* Filter bar */}
+      {/* Filter bar — Stessa-style: always visible, 2 rows */}
       {transactions.length > 0 && (
-        <div className="mb-4">
-          <div className="md:hidden">
-            <FilterPanel state={filters} onChange={patchFilters} onClear={clearFilters} properties={properties} hasActive={hasActiveFilters} open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} />
-          </div>
-          <div className="hidden md:flex flex-wrap gap-2 items-center">
-            <div className="relative flex-1 min-w-[180px]">
+        <div className="mb-4 space-y-2">
+          {/* Row 1: search + property */}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground pointer-events-none" />
-              <Input placeholder="Search payee or notes…" className="pl-8 h-9 text-sm" value={filters.search} onChange={(e) => patchFilters({ search: e.target.value })} />
+              <Input
+                placeholder="Search for..."
+                className="pl-8 h-9 text-sm"
+                value={filters.search}
+                onChange={(e) => patchFilters({ search: e.target.value })}
+              />
             </div>
-            <div className="flex rounded-md border overflow-hidden h-9 text-xs shrink-0">
-              {(["all", "income", "expense"] as const).map((t) => (
-                <button key={t} className={`px-3 capitalize transition-colors ${filters.typeFilter === t ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`} onClick={() => patchFilters({ typeFilter: t })}>
-                  {t === "all" ? "All" : t}
-                </button>
-              ))}
-            </div>
-            <Select value={filters.categoryFilter} onValueChange={(v) => patchFilters({ categoryFilter: v ?? "" })}>
-              <SelectTrigger className="w-[150px] h-9 text-xs"><SelectValue placeholder="All Categories" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">All Categories</SelectItem>
-                {CATEGORIES.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            {properties.length > 1 && (
-              <Select value={filters.propertyFilter} onValueChange={(v) => patchFilters({ propertyFilter: v ?? "" })}>
-                <SelectTrigger className="w-[140px] h-9 text-xs"><SelectValue placeholder="All Properties" /></SelectTrigger>
+            {properties.length > 0 && (
+              <Select value={filters.propertyFilter || "all"} onValueChange={(v) => patchFilters({ propertyFilter: (v ?? "") === "all" ? "" : (v ?? "") })}>
+                <SelectTrigger className="w-[160px] h-9 text-xs shrink-0">
+                  <SelectValue placeholder="All properties" />
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Properties</SelectItem>
+                  <SelectItem value="all">All properties</SelectItem>
                   {properties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             )}
-            <Input type="date" className="w-[130px] h-9 text-xs" value={filters.dateFrom} onChange={(e) => patchFilters({ dateFrom: e.target.value })} title="From date" />
-            <Input type="date" className="w-[130px] h-9 text-xs" value={filters.dateTo} onChange={(e) => patchFilters({ dateTo: e.target.value })} title="To date" />
+          </div>
+
+          {/* Row 2: date + category + type + clear */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <DateRangePicker
+              value={filters.dateRange}
+              onChange={(range) => patchFilters({ dateRange: range })}
+            />
+            <Select value={filters.categoryFilter || "all"} onValueChange={(v) => patchFilters({ categoryFilter: (v ?? "") === "all" ? "" : (v ?? "") })}>
+              <SelectTrigger className="h-9 text-xs w-[150px]">
+                <SelectValue placeholder="All categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {CATEGORIES.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filters.typeFilter} onValueChange={(v) => patchFilters({ typeFilter: v as FilterState["typeFilter"] })}>
+              <SelectTrigger className="h-9 text-xs w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All amounts</SelectItem>
+                <SelectItem value="income">Money in</SelectItem>
+                <SelectItem value="expense">Money out</SelectItem>
+              </SelectContent>
+            </Select>
             {hasActiveFilters && (
               <Button variant="ghost" size="sm" className="h-9 px-2 text-xs" onClick={clearFilters}>
                 <X className="size-3.5 mr-1" />Clear

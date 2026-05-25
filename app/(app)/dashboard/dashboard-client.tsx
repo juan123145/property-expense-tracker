@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   TrendingDown, TrendingUp, AlertTriangle, Tag,
   Building2, ArrowRight, Receipt,
@@ -9,6 +10,10 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { DateRangePicker, type DateRangeValue } from "@/components/ui/date-range-picker";
 import { getCategoryBadgeClass, CATEGORIES } from "@/lib/categories";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -47,6 +52,8 @@ type RecentTx = {
   propertyName: string | null;
 };
 
+type UserProperty = { id: string; name: string };
+
 type Props = {
   userName: string;
   currentMonth: string;
@@ -54,6 +61,11 @@ type Props = {
   propertyTotals: PropertyTotal[];
   categoryChart: CategoryBar[];
   recentTransactions: RecentTx[];
+  userProperties: UserProperty[];
+  currentPropertyId: string;
+  currentDateRange: DateRangeValue;
+  periodLabel: string;
+  hasDateFilter: boolean;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -86,6 +98,60 @@ function getCategoryColor(category: string): string {
   return "#94a3b8";
 }
 
+// ─── Dashboard filter bar ─────────────────────────────────────────────────────
+
+function DashboardFilters({
+  userProperties,
+  currentPropertyId,
+  currentDateRange,
+}: {
+  userProperties: UserProperty[];
+  currentPropertyId: string;
+  currentDateRange: DateRangeValue;
+}) {
+  const router = useRouter();
+
+  function buildUrl(patch: { property?: string; range?: DateRangeValue }) {
+    const params = new URLSearchParams();
+    const property = patch.property !== undefined ? patch.property : currentPropertyId;
+    const range = patch.range !== undefined ? patch.range : currentDateRange;
+
+    if (property) params.set("property", property);
+    if (range.preset !== "all") {
+      params.set("preset", range.preset);
+      if (range.start) params.set("start", range.start);
+      if (range.end) params.set("end", range.end);
+    }
+    const qs = params.toString();
+    return `/dashboard${qs ? `?${qs}` : ""}`;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2 items-center">
+      {userProperties.length > 0 && (
+        <Select
+          value={currentPropertyId || "all"}
+          onValueChange={(v) => router.push(buildUrl({ property: (v ?? "") === "all" ? "" : (v ?? "") }))}
+        >
+          <SelectTrigger className="h-9 text-xs w-[160px]">
+            <SelectValue placeholder="All Properties" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Properties</SelectItem>
+            {userProperties.map((p) => (
+              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      <DateRangePicker
+        value={currentDateRange}
+        onChange={(range) => router.push(buildUrl({ range }))}
+      />
+    </div>
+  );
+}
+
 // ─── Summary cards ────────────────────────────────────────────────────────────
 
 function SummaryCard({
@@ -103,7 +169,7 @@ function SummaryCard({
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
         <div className={`flex items-center justify-center w-9 h-9 rounded-lg ${iconColor}`}>
-          <Icon className="size-4.5" />
+          <Icon className="size-[18px]" />
         </div>
       </div>
       <div>
@@ -140,40 +206,52 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{
 
 export function DashboardClient({
   userName, currentMonth, summary, propertyTotals, categoryChart, recentTransactions,
+  userProperties, currentPropertyId, currentDateRange, periodLabel, hasDateFilter,
 }: Props) {
   const netMonth = summary.incomeMonth - summary.expensesMonth;
   const netYear = summary.incomeYear - summary.expensesYear;
 
-  return (
-    <div className="p-4 md:p-6 space-y-8">
+  // Card label suffix: "this month" by default, or the selected period label
+  const periodSuffix = hasDateFilter ? periodLabel : "this month";
+  const yearSuffix = "this year";
 
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Welcome back, {userName}</h1>
-        <p className="text-sm text-muted-foreground mt-1">{currentMonth}</p>
+  return (
+    <div className="p-4 md:p-6 space-y-6">
+
+      {/* Header + filters */}
+      <div className="space-y-3">
+        <div>
+          <h1 className="text-2xl font-bold">Welcome back, {userName}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{currentMonth}</p>
+        </div>
+        <DashboardFilters
+          userProperties={userProperties}
+          currentPropertyId={currentPropertyId}
+          currentDateRange={currentDateRange}
+        />
       </div>
 
       {/* ── Summary cards (2×2 on mobile, 4 across on desktop) ── */}
       <section>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           <SummaryCard
-            label="Expenses this month"
+            label={`Expenses — ${periodSuffix}`}
             value={`$${fmt(summary.expensesMonth)}`}
-            sub={`$${fmt(summary.expensesYear)} this year`}
+            sub={!hasDateFilter ? `$${fmt(summary.expensesYear)} ${yearSuffix}` : undefined}
             icon={TrendingDown}
             iconColor="bg-red-100 text-red-600"
           />
           <SummaryCard
-            label="Income this month"
+            label={`Income — ${periodSuffix}`}
             value={`$${fmt(summary.incomeMonth)}`}
-            sub={`$${fmt(summary.incomeYear)} this year`}
+            sub={!hasDateFilter ? `$${fmt(summary.incomeYear)} ${yearSuffix}` : undefined}
             icon={TrendingUp}
             iconColor="bg-green-100 text-green-600"
           />
           <SummaryCard
-            label="Net this month"
+            label={`Net — ${periodSuffix}`}
             value={`${netMonth >= 0 ? "+" : "-"}$${fmt(Math.abs(netMonth))}`}
-            sub={`${netYear >= 0 ? "+" : "-"}$${fmt(Math.abs(netYear))} this year`}
+            sub={!hasDateFilter ? `${netYear >= 0 ? "+" : "-"}$${fmt(Math.abs(netYear))} ${yearSuffix}` : undefined}
             icon={netMonth >= 0 ? TrendingUp : TrendingDown}
             iconColor={netMonth >= 0 ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"}
           />
@@ -248,11 +326,15 @@ export function DashboardClient({
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="rounded-lg bg-muted/50 px-3 py-2">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">This month</p>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                        {hasDateFilter ? periodLabel : "This month"}
+                      </p>
                       <p className="text-sm font-bold text-red-600 mt-0.5">${fmt(p.expensesMonth)}</p>
                     </div>
                     <div className="rounded-lg bg-muted/50 px-3 py-2">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">This year</p>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                        {hasDateFilter ? "Total" : "This year"}
+                      </p>
                       <p className="text-sm font-bold text-red-600 mt-0.5">${fmt(p.expensesYear)}</p>
                     </div>
                   </div>
@@ -268,11 +350,13 @@ export function DashboardClient({
 
         {/* Bar chart */}
         <section>
-          <h2 className="font-semibold text-base mb-3">Expenses by Category — This Month</h2>
+          <h2 className="font-semibold text-base mb-3">
+            Expenses by Category{hasDateFilter ? ` — ${periodLabel}` : " — This Month"}
+          </h2>
           {categoryChart.length === 0 ? (
             <div className="rounded-xl border bg-muted/30 flex flex-col items-center justify-center py-14 text-center gap-2">
               <Tag className="size-8 text-muted-foreground/50" />
-              <p className="text-sm text-muted-foreground">No expenses recorded this month yet</p>
+              <p className="text-sm text-muted-foreground">No expenses recorded for this period</p>
             </div>
           ) : (
             <div className="rounded-xl border bg-card p-4">

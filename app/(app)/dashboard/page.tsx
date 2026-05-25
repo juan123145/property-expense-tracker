@@ -3,6 +3,9 @@ import { db } from "@/db";
 import { transactions, properties } from "@/db/schema";
 import { eq, and, sql, desc, count, isNotNull } from "drizzle-orm";
 import { DashboardClient } from "./dashboard-client";
+import { getPresetRange, presetDisplayLabel, type DatePreset } from "@/lib/date-ranges";
+
+// ─── Date helpers ─────────────────────────────────────────────────────────────
 
 function monthStart() {
   const d = new Date();
@@ -12,30 +15,80 @@ function yearStart() {
   return `${new Date().getFullYear()}-01-01`;
 }
 
-async function getSummary(userId: string) {
-  const ms = monthStart();
+// ─── Parse searchParams ───────────────────────────────────────────────────────
+
+type DateRange = { start: string; end: string };
+
+function parseDateRange(
+  preset: string | undefined,
+  start: string | undefined,
+  end: string | undefined
+): { range: DateRange | null; preset: DatePreset } {
+  if (!preset || preset === "all") return { range: null, preset: "all" };
+
+  const namedPresets = ["mtd", "last-month", "ytd", "last-12", "last-cal-year"] as const;
+  type Named = typeof namedPresets[number];
+
+  if ((namedPresets as readonly string[]).includes(preset)) {
+    const range = getPresetRange(preset as Named);
+    return { range, preset: preset as DatePreset };
+  }
+
+  if (preset === "custom" && start && end) {
+    return { range: { start, end }, preset: "custom" };
+  }
+
+  return { range: null, preset: "all" };
+}
+
+// ─── Queries ──────────────────────────────────────────────────────────────────
+
+async function getSummary(
+  userId: string,
+  range: DateRange | null,
+  propertyId: string | null
+) {
+  const periodStart = range?.start ?? monthStart();
+  const periodEnd = range?.end ?? null;
   const ys = yearStart();
 
-  const [expMonth, expYear, incMonth, incYear, topCat, needsReview] = await Promise.all([
+  const base = [
+    eq(transactions.userId, userId),
+    eq(transactions.isDeleted, false),
+    ...(propertyId ? [eq(transactions.propertyId, propertyId)] : []),
+  ];
+
+  const periodCond = [
+    sql`${transactions.date} >= ${periodStart}::date`,
+    ...(periodEnd ? [sql`${transactions.date} <= ${periodEnd}::date`] : []),
+  ];
+
+  const yearCond = [sql`${transactions.date} >= ${ys}::date`];
+
+  const [expPeriod, expYear, incPeriod, incYear, topCat, needsReview] = await Promise.all([
     db.select({ total: sql<string>`coalesce(sum(${transactions.amount}), 0)` })
       .from(transactions)
-      .where(and(eq(transactions.userId, userId), eq(transactions.type, "expense"), eq(transactions.isDeleted, false), sql`${transactions.date} >= ${ms}::date`)),
+      .where(and(...base, eq(transactions.type, "expense"), ...periodCond)),
+
+    range === null
+      ? db.select({ total: sql<string>`coalesce(sum(${transactions.amount}), 0)` })
+          .from(transactions)
+          .where(and(...base, eq(transactions.type, "expense"), ...yearCond))
+      : Promise.resolve([{ total: "0" }]),
 
     db.select({ total: sql<string>`coalesce(sum(${transactions.amount}), 0)` })
       .from(transactions)
-      .where(and(eq(transactions.userId, userId), eq(transactions.type, "expense"), eq(transactions.isDeleted, false), sql`${transactions.date} >= ${ys}::date`)),
+      .where(and(...base, eq(transactions.type, "income"), ...periodCond)),
 
-    db.select({ total: sql<string>`coalesce(sum(${transactions.amount}), 0)` })
-      .from(transactions)
-      .where(and(eq(transactions.userId, userId), eq(transactions.type, "income"), eq(transactions.isDeleted, false), sql`${transactions.date} >= ${ms}::date`)),
-
-    db.select({ total: sql<string>`coalesce(sum(${transactions.amount}), 0)` })
-      .from(transactions)
-      .where(and(eq(transactions.userId, userId), eq(transactions.type, "income"), eq(transactions.isDeleted, false), sql`${transactions.date} >= ${ys}::date`)),
+    range === null
+      ? db.select({ total: sql<string>`coalesce(sum(${transactions.amount}), 0)` })
+          .from(transactions)
+          .where(and(...base, eq(transactions.type, "income"), ...yearCond))
+      : Promise.resolve([{ total: "0" }]),
 
     db.select({ category: transactions.category, total: sql<string>`sum(${transactions.amount})` })
       .from(transactions)
-      .where(and(eq(transactions.userId, userId), eq(transactions.type, "expense"), eq(transactions.isDeleted, false), isNotNull(transactions.category), sql`${transactions.date} >= ${ms}::date`))
+      .where(and(...base, eq(transactions.type, "expense"), isNotNull(transactions.category), ...periodCond))
       .groupBy(transactions.category)
       .orderBy(sql`sum(${transactions.amount}) desc`)
       .limit(1),
@@ -46,9 +99,9 @@ async function getSummary(userId: string) {
   ]);
 
   return {
-    expensesMonth: parseFloat(expMonth[0]?.total ?? "0"),
+    expensesMonth: parseFloat(expPeriod[0]?.total ?? "0"),
     expensesYear: parseFloat(expYear[0]?.total ?? "0"),
-    incomeMonth: parseFloat(incMonth[0]?.total ?? "0"),
+    incomeMonth: parseFloat(incPeriod[0]?.total ?? "0"),
     incomeYear: parseFloat(incYear[0]?.total ?? "0"),
     topCategory: topCat[0]?.category ?? null,
     topCategoryAmount: parseFloat(topCat[0]?.total ?? "0"),
@@ -56,18 +109,31 @@ async function getSummary(userId: string) {
   };
 }
 
-async function getPropertyTotals(userId: string) {
-  const ms = monthStart();
+async function getPropertyTotals(
+  userId: string,
+  range: DateRange | null,
+  filterPropertyId: string | null
+) {
+  const periodStart = range?.start ?? monthStart();
+  const periodEnd = range?.end ?? null;
   const ys = yearStart();
 
-  const props = await db
+  const propQuery = db
     .select({ id: properties.id, name: properties.name, address: properties.address, city: properties.city, state: properties.state, type: properties.type, imageUrl: properties.imageUrl })
     .from(properties)
     .where(and(eq(properties.userId, userId), eq(properties.isArchived, false)));
 
+  const props = filterPropertyId
+    ? (await propQuery).filter((p) => p.id === filterPropertyId)
+    : await propQuery;
+
   if (props.length === 0) return [];
 
-  const periodExpr = sql<string>`case when ${transactions.date} >= ${sql.raw(`'${ms}'`)}::date then 'month' else 'year' end`;
+  // When a date range is active, use it; otherwise use YTD for "year" bucket
+  const rangeStart = range !== null ? periodStart : ys;
+  const monthBucketStart = periodStart;
+
+  const periodExpr = sql<string>`case when ${transactions.date} >= '${sql.raw(monthBucketStart)}'::date ${periodEnd ? sql`and ${transactions.date} <= '${sql.raw(periodEnd)}'::date` : sql``} then 'month' else 'year' end`;
 
   const expenseRows = await db
     .select({
@@ -76,7 +142,15 @@ async function getPropertyTotals(userId: string) {
       total: sql<string>`sum(${transactions.amount})`,
     })
     .from(transactions)
-    .where(and(eq(transactions.userId, userId), eq(transactions.type, "expense"), eq(transactions.isDeleted, false), sql`${transactions.date} >= ${ys}::date`))
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        eq(transactions.type, "expense"),
+        eq(transactions.isDeleted, false),
+        sql`${transactions.date} >= ${rangeStart}::date`,
+        ...(periodEnd && range !== null ? [sql`${transactions.date} <= ${periodEnd}::date`] : [])
+      )
+    )
     .groupBy(transactions.propertyId, periodExpr);
 
   const byProp = new Map<string, { month: number; year: number }>();
@@ -94,12 +168,28 @@ async function getPropertyTotals(userId: string) {
     .sort((a, b) => b.expensesMonth - a.expensesMonth);
 }
 
-async function getCategoryChart(userId: string) {
-  const ms = monthStart();
+async function getCategoryChart(
+  userId: string,
+  range: DateRange | null,
+  propertyId: string | null
+) {
+  const periodStart = range?.start ?? monthStart();
+  const periodEnd = range?.end ?? null;
+
+  const base = [
+    eq(transactions.userId, userId),
+    eq(transactions.type, "expense"),
+    eq(transactions.isDeleted, false),
+    isNotNull(transactions.category),
+    ...(propertyId ? [eq(transactions.propertyId, propertyId)] : []),
+    sql`${transactions.date} >= ${periodStart}::date`,
+    ...(periodEnd ? [sql`${transactions.date} <= ${periodEnd}::date`] : []),
+  ];
+
   const rows = await db
     .select({ category: transactions.category, total: sql<string>`sum(${transactions.amount})` })
     .from(transactions)
-    .where(and(eq(transactions.userId, userId), eq(transactions.type, "expense"), eq(transactions.isDeleted, false), isNotNull(transactions.category), sql`${transactions.date} >= ${ms}::date`))
+    .where(and(...base))
     .groupBy(transactions.category)
     .orderBy(sql`sum(${transactions.amount}) desc`)
     .limit(8);
@@ -107,25 +197,47 @@ async function getCategoryChart(userId: string) {
   return rows.map((r) => ({ category: r.category ?? "Uncategorized", total: parseFloat(r.total ?? "0") }));
 }
 
-async function getRecentTransactions(userId: string) {
+async function getRecentTransactions(userId: string, propertyId: string | null) {
   return db
     .select({ id: transactions.id, date: transactions.date, amount: transactions.amount, type: transactions.type, payee: transactions.payee, category: transactions.category, propertyName: properties.name })
     .from(transactions)
     .leftJoin(properties, eq(transactions.propertyId, properties.id))
-    .where(and(eq(transactions.userId, userId), eq(transactions.isDeleted, false)))
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        eq(transactions.isDeleted, false),
+        ...(propertyId ? [eq(transactions.propertyId, propertyId)] : [])
+      )
+    )
     .orderBy(desc(transactions.date), desc(transactions.createdAt))
     .limit(5);
 }
 
-export default async function DashboardPage() {
-  const user = await requireAuth();
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
-  const [summary, propertyTotals, categoryChart, recentTxs] = await Promise.all([
-    getSummary(user.id),
-    getPropertyTotals(user.id),
-    getCategoryChart(user.id),
-    getRecentTransactions(user.id),
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ property?: string; preset?: string; start?: string; end?: string }>;
+}) {
+  const user = await requireAuth();
+  const params = await searchParams;
+
+  const { range, preset } = parseDateRange(params.preset, params.start, params.end);
+  const propertyId = params.property ?? null;
+
+  const [summary, propertyTotals, categoryChart, recentTxs, userProperties] = await Promise.all([
+    getSummary(user.id, range, propertyId),
+    getPropertyTotals(user.id, range, propertyId),
+    getCategoryChart(user.id, range, propertyId),
+    getRecentTransactions(user.id, propertyId),
+    db.select({ id: properties.id, name: properties.name })
+      .from(properties)
+      .where(and(eq(properties.userId, user.id), eq(properties.isArchived, false))),
   ]);
+
+  const periodLabel = presetDisplayLabel(preset, params.start, params.end);
+  const hasDateFilter = preset !== "all";
 
   const currentMonth = new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
 
@@ -137,6 +249,15 @@ export default async function DashboardPage() {
       propertyTotals={propertyTotals}
       categoryChart={categoryChart}
       recentTransactions={recentTxs}
+      userProperties={userProperties}
+      currentPropertyId={propertyId ?? ""}
+      currentDateRange={{
+        preset,
+        start: params.start ?? "",
+        end: params.end ?? "",
+      }}
+      periodLabel={periodLabel}
+      hasDateFilter={hasDateFilter}
     />
   );
 }
