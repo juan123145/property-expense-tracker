@@ -133,10 +133,14 @@ function DashboardFilters({
           value={currentPropertyId || "all"}
           onValueChange={(v) => router.push(buildUrl({ property: (v ?? "") === "all" ? "" : (v ?? "") }))}
         >
-          <SelectTrigger className="h-9 text-xs w-[160px]">
-            <SelectValue placeholder="All Properties" />
+          <SelectTrigger className="!h-9 text-sm w-[180px] bg-background">
+            <SelectValue placeholder="All Properties">
+              {currentPropertyId
+                ? (userProperties.find((p) => p.id === currentPropertyId)?.name ?? "")
+                : undefined}
+            </SelectValue>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent align="start">
             <SelectItem value="all">All Properties</SelectItem>
             {userProperties.map((p) => (
               <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
@@ -147,6 +151,7 @@ function DashboardFilters({
       <DateRangePicker
         value={currentDateRange}
         onChange={(range) => router.push(buildUrl({ range }))}
+        className="!h-9 text-sm"
       />
     </div>
   );

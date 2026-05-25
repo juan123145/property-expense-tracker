@@ -531,22 +531,26 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
       {transactions.length > 0 && (
         <div className="mb-4 space-y-2">
           {/* Row 1: search + property */}
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground pointer-events-none" />
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="relative w-[220px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
               <Input
                 placeholder="Search for..."
-                className="pl-8 h-9 text-sm"
+                className="pl-8 !h-9 text-sm"
                 value={filters.search}
                 onChange={(e) => patchFilters({ search: e.target.value })}
               />
             </div>
             {properties.length > 0 && (
               <Select value={filters.propertyFilter || "all"} onValueChange={(v) => patchFilters({ propertyFilter: (v ?? "") === "all" ? "" : (v ?? "") })}>
-                <SelectTrigger className="w-[160px] h-9 text-xs shrink-0">
-                  <SelectValue placeholder="All properties" />
+                <SelectTrigger className="!h-9 text-sm w-[180px] bg-background">
+                  <SelectValue placeholder="All properties">
+                    {filters.propertyFilter
+                      ? (properties.find((p) => p.id === filters.propertyFilter)?.name ?? "")
+                      : undefined}
+                  </SelectValue>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent align="start">
                   <SelectItem value="all">All properties</SelectItem>
                   {properties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
@@ -559,28 +563,33 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
             <DateRangePicker
               value={filters.dateRange}
               onChange={(range) => patchFilters({ dateRange: range })}
+              className="!h-9 text-sm"
             />
             <Select value={filters.categoryFilter || "all"} onValueChange={(v) => patchFilters({ categoryFilter: (v ?? "") === "all" ? "" : (v ?? "") })}>
-              <SelectTrigger className="h-9 text-xs w-[150px]">
-                <SelectValue placeholder="All categories" />
+              <SelectTrigger className="!h-9 text-sm w-[160px] bg-background">
+                <SelectValue placeholder="All categories">
+                  {filters.categoryFilter || undefined}
+                </SelectValue>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent align="start">
                 <SelectItem value="all">All categories</SelectItem>
                 {CATEGORIES.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={filters.typeFilter} onValueChange={(v) => patchFilters({ typeFilter: v as FilterState["typeFilter"] })}>
-              <SelectTrigger className="h-9 text-xs w-[140px]">
-                <SelectValue />
+            <Select value={filters.typeFilter} onValueChange={(v) => patchFilters({ typeFilter: (v ?? "all") as FilterState["typeFilter"] })}>
+              <SelectTrigger className="!h-9 text-sm w-[140px] bg-background">
+                <SelectValue>
+                  {filters.typeFilter === "income" ? "Money in" : filters.typeFilter === "expense" ? "Money out" : "All amounts"}
+                </SelectValue>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent align="start">
                 <SelectItem value="all">All amounts</SelectItem>
                 <SelectItem value="income">Money in</SelectItem>
                 <SelectItem value="expense">Money out</SelectItem>
               </SelectContent>
             </Select>
             {hasActiveFilters && (
-              <Button variant="ghost" size="sm" className="h-9 px-2 text-xs" onClick={clearFilters}>
+              <Button variant="ghost" size="sm" className="!h-9 px-3 text-sm text-muted-foreground" onClick={clearFilters}>
                 <X className="size-3.5 mr-1" />Clear
               </Button>
             )}
