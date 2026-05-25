@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { createTransaction, updateTransaction } from "@/app/actions/transactions";
 import {
@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CategorySelect } from "./category-select";
+import { ReceiptUploadZone } from "./receipt-upload-zone";
 
 export type TransactionFormData = {
   id: string;
@@ -32,6 +33,9 @@ export type TransactionFormData = {
   propertyId: string | null;
   unitId: string | null;
   notes: string | null;
+  attachmentUrl: string | null;
+  attachmentName: string | null;
+  attachmentSizeKb: number | null;
 };
 
 type Property = { id: string; name: string };
@@ -64,6 +68,12 @@ export function AddTransactionSheet({
   const [category, setCategory] = useState(transaction?.category ?? "");
   const [subcategory, setSubcategory] = useState(transaction?.subcategory ?? "");
 
+  // Attachment state
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  // "keep" = use existing, "clear" = remove existing, "new" = pendingFile replaces
+  const [attachmentAction, setAttachmentAction] = useState<"keep" | "clear" | "new">("keep");
+  const [uploading, setUploading] = useState(false);
+
   const filteredUnits = allUnits.filter(
     (u) => propertyId !== "none" && u.propertyId !== null && u.propertyId === propertyId
   );
@@ -76,6 +86,8 @@ export function AddTransactionSheet({
       setAmount(transaction?.amount ?? "");
       setCategory(transaction?.category ?? "");
       setSubcategory(transaction?.subcategory ?? "");
+      setPendingFile(null);
+      setAttachmentAction("keep");
     }
   }, [open, transaction]);
 
@@ -90,11 +102,59 @@ export function AddTransactionSheet({
       setAmount("");
       setCategory("");
       setSubcategory("");
+      setPendingFile(null);
+      setAttachmentAction("keep");
     }
     if (state?.error) {
       toast.error(state.error);
     }
   }, [state, isEdit, onOpenChange]);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+
+    // Handle attachment
+    if (attachmentAction === "new" && pendingFile) {
+      setUploading(true);
+      try {
+        const uploadFd = new FormData();
+        uploadFd.set("file", pendingFile);
+        const res = await fetch("/api/upload", { method: "POST", body: uploadFd });
+        if (!res.ok) {
+          const { error } = await res.json().catch(() => ({ error: "Upload failed." }));
+          toast.error(error ?? "Upload failed.");
+          setUploading(false);
+          return;
+        }
+        const { url, filename, sizeKb } = await res.json();
+        fd.set("attachmentUrl", url);
+        fd.set("attachmentName", filename);
+        fd.set("attachmentSizeKb", String(sizeKb));
+      } catch {
+        toast.error("Upload failed. Please try again.");
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    } else if (attachmentAction === "clear") {
+      fd.set("attachmentUrl", "");
+      fd.set("attachmentName", "");
+      fd.set("attachmentSizeKb", "");
+    } else if (attachmentAction === "keep") {
+      // Pass existing values so the server action preserves them
+      fd.set("attachmentUrl", transaction?.attachmentUrl ?? "");
+      fd.set("attachmentName", transaction?.attachmentName ?? "");
+      fd.set("attachmentSizeKb", transaction?.attachmentSizeKb != null ? String(transaction.attachmentSizeKb) : "");
+    }
+
+    // Pass existing URL so server can delete from R2 if replaced/cleared
+    fd.set("existingAttachmentUrl", transaction?.attachmentUrl ?? "");
+
+    startTransition(() => formAction(fd));
+  }
+
+  const isBusy = pending || uploading;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -102,7 +162,7 @@ export function AddTransactionSheet({
         <SheetHeader>
           <SheetTitle>{isEdit ? "Edit Transaction" : "Add Transaction"}</SheetTitle>
         </SheetHeader>
-        <form ref={formRef} action={formAction} className="mt-6 space-y-4 px-4 pb-6">
+        <form ref={formRef} onSubmit={handleSubmit} className="mt-6 space-y-4 px-4 pb-6">
           {isEdit && <input type="hidden" name="id" value={transaction.id} />}
 
           <div className="grid grid-cols-2 gap-3">
@@ -245,14 +305,25 @@ export function AddTransactionSheet({
 
           <div className="space-y-1.5">
             <Label>Receipt</Label>
-            <div className="flex h-8 items-center rounded-lg border border-input bg-muted/30 px-3 text-xs text-muted-foreground">
-              Receipt upload coming in Cycle 4
-            </div>
+            <ReceiptUploadZone
+              file={pendingFile}
+              onFileChange={(f) => {
+                setPendingFile(f);
+                setAttachmentAction(f ? "new" : "keep");
+              }}
+              existingUrl={attachmentAction !== "clear" ? transaction?.attachmentUrl : null}
+              existingName={transaction?.attachmentName}
+              existingSizeKb={transaction?.attachmentSizeKb}
+              onClear={() => {
+                setPendingFile(null);
+                setAttachmentAction(isEdit && transaction?.attachmentUrl ? "clear" : "keep");
+              }}
+            />
           </div>
 
           <div className="flex gap-2 pt-2">
-            <Button type="submit" disabled={pending} className="flex-1">
-              {pending ? "Saving…" : isEdit ? "Save Changes" : "Add Transaction"}
+            <Button type="submit" disabled={isBusy} className="flex-1">
+              {uploading ? "Uploading…" : pending ? "Saving…" : isEdit ? "Save Changes" : "Add Transaction"}
             </Button>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

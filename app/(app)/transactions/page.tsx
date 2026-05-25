@@ -18,6 +18,8 @@ async function getTransactions(userId: string) {
       unitId: transactions.unitId,
       notes: transactions.notes,
       attachmentUrl: transactions.attachmentUrl,
+      attachmentName: transactions.attachmentName,
+      attachmentSizeKb: transactions.attachmentSizeKb,
       needsReview: transactions.needsReview,
       propertyName: properties.name,
       unitName: units.name,
