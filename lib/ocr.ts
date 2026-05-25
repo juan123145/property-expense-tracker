@@ -1,3 +1,4 @@
+import pdfParse from "pdf-parse";
 import { CATEGORIES } from "./categories";
 
 export type OcrResult = {
@@ -138,6 +139,32 @@ function suggestCategory(payee: string | null): string | null {
     }
   }
   return null;
+}
+
+// ─── PDF text extraction ──────────────────────────────────────────────────────
+
+export async function ocrPdfBuffer(buffer: Buffer): Promise<OcrResult> {
+  let rawText = "";
+  try {
+    const data = await pdfParse(buffer);
+    rawText = data.text ?? "";
+  } catch {
+    return { date: null, amount: null, payee: null, category: null, confidence: 0, rawText: "" };
+  }
+
+  if (!rawText.trim()) {
+    return { date: null, amount: null, payee: null, category: null, confidence: 0, rawText: "" };
+  }
+
+  const payee = parsePayee(rawText);
+  return {
+    date: parseDate(rawText),
+    amount: parseAmount(rawText),
+    payee,
+    category: suggestCategory(payee),
+    confidence: 0.85, // direct text extraction is highly reliable
+    rawText,
+  };
 }
 
 // ─── Google Vision ────────────────────────────────────────────────────────────

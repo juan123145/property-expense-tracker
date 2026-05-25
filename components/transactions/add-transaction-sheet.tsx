@@ -106,7 +106,9 @@ export function AddTransactionSheet({
 
   // Run OCR whenever a new image file is selected
   useEffect(() => {
-    if (!pendingFile || !pendingFile.type.startsWith("image/")) {
+    const isOcrSupported =
+      pendingFile?.type.startsWith("image/") || pendingFile?.type === "application/pdf";
+    if (!pendingFile || !isOcrSupported) {
       setOcrResult(null);
       setOcrScanning(false);
       return;
