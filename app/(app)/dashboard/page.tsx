@@ -24,7 +24,12 @@ function parseDateRange(
   start: string | undefined,
   end: string | undefined
 ): { range: DateRange | null; preset: DatePreset } {
-  if (!preset || preset === "all") return { range: null, preset: "all" };
+  // Default to Month-to-Date when no filter is in the URL
+  if (!preset) {
+    const range = getPresetRange("mtd");
+    return { range, preset: "mtd" };
+  }
+  if (preset === "all") return { range: null, preset: "all" };
 
   const namedPresets = ["mtd", "last-month", "ytd", "last-12", "last-cal-year"] as const;
   type Named = typeof namedPresets[number];

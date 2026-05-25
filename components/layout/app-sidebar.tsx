@@ -16,8 +16,6 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: Settings, comingSoon: true },
 ];
 
-const mobileNavItems = navItems.filter((i) => !i.comingSoon);
-
 type Props = { needsReviewCount: number };
 
 export function AppSidebar({ needsReviewCount }: Props) {
@@ -73,9 +71,22 @@ export function MobileBottomNav({ needsReviewCount }: Props) {
       className="md:hidden fixed bottom-0 inset-x-0 z-50 flex border-t bg-card/95 backdrop-blur-sm"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      {mobileNavItems.map(({ href, label, icon: Icon, hasBadge }) => {
+      {navItems.map(({ href, label, icon: Icon, hasBadge, comingSoon }) => {
         const active = pathname === href || pathname.startsWith(href + "/");
         const badge = hasBadge && needsReviewCount > 0 ? needsReviewCount : null;
+
+        if (comingSoon) {
+          return (
+            <div
+              key={href}
+              className="relative flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium text-muted-foreground/40 cursor-not-allowed"
+            >
+              <Icon className="size-5" />
+              {label}
+            </div>
+          );
+        }
+
         return (
           <Link
             key={href}
