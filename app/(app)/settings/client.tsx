@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { User, HardDrive, Trash2, AlertTriangle, Shield, X } from "lucide-react";
+import { useTheme } from "next-themes";
+import { User, HardDrive, Trash2, AlertTriangle, Shield, X, Monitor, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { deleteAccount } from "./actions";
 
@@ -21,6 +22,7 @@ export function SettingsClient({ user, usedKb, quotaKb }: Props) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteInput, setDeleteInput] = useState("");
   const [isPending, startTransition] = useTransition();
+  const { theme, setTheme } = useTheme();
 
   const pct = Math.min(100, (usedKb / quotaKb) * 100);
   const isWarning = pct >= 80;
@@ -144,6 +146,38 @@ export function SettingsClient({ user, usedKb, quotaKb }: Props) {
           <p className="text-xs text-muted-foreground">
             Storage is used by receipts and attachments uploaded to transactions.
           </p>
+        </div>
+      </section>
+
+      {/* Appearance */}
+      <section className="rounded-xl border bg-card overflow-hidden">
+        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b bg-muted/30">
+          <Sun className="size-4 text-muted-foreground" />
+          <h2 className="font-semibold text-sm">Appearance</h2>
+        </div>
+        <div className="p-5 space-y-3">
+          <p className="text-xs text-muted-foreground">Choose how the app looks. System follows your device preference.</p>
+          <div className="flex gap-2">
+            {([
+              { value: "system", label: "System", Icon: Monitor },
+              { value: "light",  label: "Light",  Icon: Sun    },
+              { value: "dark",   label: "Dark",   Icon: Moon   },
+            ] as const).map(({ value, label, Icon }) => (
+              <button
+                key={value}
+                onClick={() => setTheme(value)}
+                className={cn(
+                  "flex flex-1 flex-col items-center gap-1.5 rounded-lg border px-3 py-3 text-xs font-medium transition-colors",
+                  theme === value
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Icon className="size-4" />
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
