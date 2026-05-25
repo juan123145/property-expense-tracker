@@ -1,8 +1,9 @@
 "use client";
 
+import React from "react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ChevronRight, Building2, TrendingDown, TrendingUp } from "lucide-react";
+import { ChevronRight, Building2 } from "lucide-react";
 import { DateRangePicker, type DateRangeValue } from "@/components/ui/date-range-picker";
 import { ExportButtons, type ExportColumn, type ExportSection } from "@/components/reports/export-buttons";
 import { fmt, type ByPropertyRow } from "@/lib/report-utils";
@@ -104,9 +105,8 @@ export function ByPropertyClient({ data, currentDateRange, periodLabel }: Props)
                 const isExpanded = expanded.has(prop.id);
                 const hasUnits = prop.units.length > 0;
                 return (
-                  <>
+                  <React.Fragment key={prop.id}>
                     <tr
-                      key={prop.id}
                       className={cn("transition-colors", hasUnits ? "cursor-pointer hover:bg-muted/30" : "")}
                       onClick={hasUnits ? () => toggleExpand(prop.id) : undefined}
                     >
@@ -150,7 +150,7 @@ export function ByPropertyClient({ data, currentDateRange, periodLabel }: Props)
                         <td />
                       </tr>
                     ))}
-                  </>
+                  </React.Fragment>
                 );
               })}
             </tbody>

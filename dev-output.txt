@@ -1,0 +1,19 @@
+
+> property-expense-tracker@0.1.0 dev
+> next dev
+
+⚠ Port 3000 is in use by an unknown process, using available port 3001 instead.
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:3001
+- Network:       http://10.193.78.152:3001
+- Environments: .env.local
+✓ Ready in 1768ms
+⨯ Another next dev server is already running.
+
+- Local:        http://localhost:3000
+- PID:          8632
+- Dir:          C:\Users\M225735\property-expense-tracker
+- Log:          .next\dev\logs\next-development.log
+
+Run taskkill /PID 8632 /F to stop it.
+[?25h
