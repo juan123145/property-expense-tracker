@@ -122,7 +122,7 @@ export default async function PropertyDetailPage({ params }: PageProps) {
   }));
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <Link href="/properties" className="hover:text-foreground transition-colors">Properties</Link>

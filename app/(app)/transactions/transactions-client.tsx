@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import {
   Plus, Paperclip, CheckCircle2, AlertTriangle, MoreHorizontal,
-  Pencil, Trash2, Receipt, Search, X, SlidersHorizontal,
+  Pencil, Trash2, Receipt, Search, X, SlidersHorizontal, Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -87,6 +87,238 @@ export function TransactionsSkeleton() {
   );
 }
 
+// ─── Mobile transaction card ─────────────────────────────────────────────────
+
+function TransactionCard({
+  tx,
+  onEdit,
+  onDelete,
+  onViewAttachments,
+}: {
+  tx: TransactionRow;
+  onEdit: (tx: TransactionRow) => void;
+  onDelete: (id: string) => void;
+  onViewAttachments: (tx: TransactionRow) => void;
+}) {
+  return (
+    <div
+      className="flex items-start gap-3 rounded-lg border bg-card px-4 py-3 active:bg-accent transition-colors cursor-pointer"
+      onClick={() => onEdit(tx)}
+    >
+      {/* Left: date + status dot */}
+      <div className="flex flex-col items-center gap-1 shrink-0 pt-0.5">
+        <div
+          className={`size-2 rounded-full ${tx.needsReview ? "bg-yellow-400" : "bg-green-500"}`}
+        />
+        <span className="text-[10px] text-muted-foreground tabular-nums leading-none">
+          {formatDate(tx.date)}
+        </span>
+      </div>
+
+      {/* Middle: payee + category + property */}
+      <div className="flex-1 min-w-0 space-y-0.5">
+        <p className="text-sm font-medium truncate">
+          {tx.payee ?? <span className="text-muted-foreground italic">No payee</span>}
+        </p>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {tx.category && (
+            <Badge className={`text-[10px] px-1.5 py-0 ${getCategoryBadgeClass(tx.category)}`}>
+              {tx.category}
+            </Badge>
+          )}
+          {tx.subcategory && (
+            <span className="text-[10px] text-muted-foreground">{tx.subcategory}</span>
+          )}
+        </div>
+        {tx.propertyName && (
+          <p className="text-[10px] text-muted-foreground truncate">{tx.propertyName}{tx.unitName ? ` · ${tx.unitName}` : ""}</p>
+        )}
+      </div>
+
+      {/* Right: amount + icons + menu */}
+      <div className="flex flex-col items-end gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+        <span
+          className={`text-sm font-semibold tabular-nums ${
+            tx.type === "income" ? "text-green-600" : "text-red-600"
+          }`}
+        >
+          {formatAmount(tx.amount, tx.type)}
+        </span>
+        <div className="flex items-center gap-2">
+          {tx.attachments.length > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onViewAttachments(tx); }}
+              className="text-primary hover:opacity-70"
+              aria-label="View receipts"
+            >
+              <Paperclip className="size-3.5" />
+            </button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className="flex h-6 w-6 items-center justify-center rounded-md hover:bg-accent"
+              aria-label="Row actions"
+            >
+              <MoreHorizontal className="size-3.5" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onEdit(tx)}>
+                <Pencil className="size-3.5 mr-2" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onClick={() => onDelete(tx.id)}>
+                <Trash2 className="size-3.5 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Filter panel ─────────────────────────────────────────────────────────────
+
+type FilterState = {
+  search: string;
+  typeFilter: "all" | "income" | "expense";
+  categoryFilter: string;
+  propertyFilter: string;
+  dateFrom: string;
+  dateTo: string;
+};
+
+function FilterPanel({
+  state,
+  onChange,
+  onClear,
+  properties,
+  hasActive,
+  open,
+  onToggle,
+}: {
+  state: FilterState;
+  onChange: (patch: Partial<FilterState>) => void;
+  onClear: () => void;
+  properties: Property[];
+  hasActive: boolean;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      {/* Search + toggle row — always visible */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Search payee or notes…"
+            className="pl-8 h-9 text-sm"
+            value={state.search}
+            onChange={(e) => onChange({ search: e.target.value })}
+          />
+        </div>
+        <button
+          onClick={onToggle}
+          className={`inline-flex items-center gap-1.5 px-3 h-9 rounded-md border text-xs font-medium transition-colors ${
+            open || hasActive
+              ? "border-primary bg-primary/5 text-primary"
+              : "border-input bg-background text-muted-foreground hover:text-foreground hover:bg-muted"
+          }`}
+        >
+          <Filter className="size-3.5" />
+          Filters
+          {hasActive && (
+            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] text-primary-foreground font-bold">
+              {[
+                state.typeFilter !== "all",
+                !!state.categoryFilter,
+                !!state.propertyFilter,
+                !!state.dateFrom,
+                !!state.dateTo,
+              ].filter(Boolean).length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Expandable filter row */}
+      {open && (
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex rounded-md border overflow-hidden h-9 text-xs shrink-0">
+            {(["all", "income", "expense"] as const).map((t) => (
+              <button
+                key={t}
+                className={`px-3 capitalize transition-colors ${
+                  state.typeFilter === t
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-background hover:bg-muted"
+                }`}
+                onClick={() => onChange({ typeFilter: t })}
+              >
+                {t === "all" ? "All" : t}
+              </button>
+            ))}
+          </div>
+
+          <Select value={state.categoryFilter} onValueChange={(v) => onChange({ categoryFilter: v ?? "" })}>
+            <SelectTrigger className="w-[150px] h-9 text-xs">
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All Categories</SelectItem>
+              {CATEGORIES.map((c) => (
+                <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {properties.length > 1 && (
+            <Select value={state.propertyFilter} onValueChange={(v) => onChange({ propertyFilter: v ?? "" })}>
+              <SelectTrigger className="w-[140px] h-9 text-xs">
+                <SelectValue placeholder="All Properties" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All Properties</SelectItem>
+                {properties.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          <Input
+            type="date"
+            className="w-[130px] h-9 text-xs"
+            value={state.dateFrom}
+            onChange={(e) => onChange({ dateFrom: e.target.value })}
+            title="From date"
+          />
+          <Input
+            type="date"
+            className="w-[130px] h-9 text-xs"
+            value={state.dateTo}
+            onChange={(e) => onChange({ dateTo: e.target.value })}
+            title="To date"
+          />
+
+          {hasActive && (
+            <Button variant="ghost" size="sm" className="h-9 px-2 text-xs" onClick={onClear}>
+              <X className="size-3.5 mr-1" />
+              Clear
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Desktop: always show full filter row (no toggle button needed) */}
+    </div>
+  );
+}
+
+// ─── Main table section ───────────────────────────────────────────────────────
+
 type TableSectionProps = {
   transactions: TransactionRow[];
   properties: Property[];
@@ -105,41 +337,39 @@ export function TransactionsTableSection({
   const [page, setPage] = useState(0);
   const { deleteId, openDelete, closeDelete } = useDeleteDialog();
   const [viewerTx, setViewerTx] = useState<TransactionRow | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Filter state
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense">("all");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [propertyFilter, setPropertyFilter] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [filters, setFilters] = useState<FilterState>({
+    search: "",
+    typeFilter: "all",
+    categoryFilter: "",
+    propertyFilter: "",
+    dateFrom: "",
+    dateTo: "",
+  });
 
-  // Reset to page 0 whenever filters change
-  useEffect(() => {
-    setPage(0);
-  }, [search, typeFilter, categoryFilter, propertyFilter, dateFrom, dateTo]);
-
-  const hasActiveFilters =
-    search.trim() !== "" ||
-    typeFilter !== "all" ||
-    categoryFilter !== "" ||
-    propertyFilter !== "" ||
-    dateFrom !== "" ||
-    dateTo !== "";
+  function patchFilters(patch: Partial<FilterState>) {
+    setFilters((f) => ({ ...f, ...patch }));
+  }
 
   function clearFilters() {
-    setSearch("");
-    setTypeFilter("all");
-    setCategoryFilter("");
-    setPropertyFilter("");
-    setDateFrom("");
-    setDateTo("");
+    setFilters({ search: "", typeFilter: "all", categoryFilter: "", propertyFilter: "", dateFrom: "", dateTo: "" });
   }
+
+  const hasActiveFilters =
+    filters.search.trim() !== "" ||
+    filters.typeFilter !== "all" ||
+    filters.categoryFilter !== "" ||
+    filters.propertyFilter !== "" ||
+    filters.dateFrom !== "" ||
+    filters.dateTo !== "";
+
+  useEffect(() => { setPage(0); }, [filters]);
 
   const filteredTransactions = useMemo(() => {
     let result = transactions;
-    if (search.trim()) {
-      const q = search.toLowerCase();
+    if (filters.search.trim()) {
+      const q = filters.search.toLowerCase();
       result = result.filter(
         (tx) =>
           tx.payee?.toLowerCase().includes(q) ||
@@ -147,21 +377,18 @@ export function TransactionsTableSection({
           tx.category?.toLowerCase().includes(q)
       );
     }
-    if (typeFilter !== "all") result = result.filter((tx) => tx.type === typeFilter);
-    if (categoryFilter) result = result.filter((tx) => tx.category === categoryFilter);
-    if (propertyFilter) result = result.filter((tx) => tx.propertyId === propertyFilter);
-    if (dateFrom) result = result.filter((tx) => tx.date >= dateFrom);
-    if (dateTo) result = result.filter((tx) => tx.date <= dateTo);
+    if (filters.typeFilter !== "all") result = result.filter((tx) => tx.type === filters.typeFilter);
+    if (filters.categoryFilter) result = result.filter((tx) => tx.category === filters.categoryFilter);
+    if (filters.propertyFilter) result = result.filter((tx) => tx.propertyId === filters.propertyFilter);
+    if (filters.dateFrom) result = result.filter((tx) => tx.date >= filters.dateFrom);
+    if (filters.dateTo) result = result.filter((tx) => tx.date <= filters.dateTo);
     return result;
-  }, [transactions, search, typeFilter, categoryFilter, propertyFilter, dateFrom, dateTo]);
+  }, [transactions, filters]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / PAGE_SIZE));
   const pageSlice = filteredTransactions.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
-  function handleOpenAdd() {
-    setEditTransaction(undefined);
-    setSheetOpen(true);
-  }
+  function handleOpenAdd() { setEditTransaction(undefined); setSheetOpen(true); }
 
   function handleEdit(tx: TransactionRow) {
     setEditTransaction({
@@ -185,9 +412,10 @@ export function TransactionsTableSection({
       {showAddButton && (
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold">Transactions</h1>
-          <Button onClick={handleOpenAdd}>
-            <Plus className="size-4 mr-2" />
-            Add Transaction
+          <Button onClick={handleOpenAdd} size="sm" className="gap-1.5">
+            <Plus className="size-4" />
+            <span className="hidden sm:inline">Add Transaction</span>
+            <span className="sm:hidden">Add</span>
           </Button>
         </div>
       )}
@@ -201,97 +429,103 @@ export function TransactionsTableSection({
         </div>
       )}
 
-      {/* Filter bar — only shown when there are transactions to filter */}
+      {/* Filter bar */}
       {transactions.length > 0 && (
-        <div className="flex flex-wrap gap-2 items-center mb-4">
-          <div className="relative flex-1 min-w-[180px]">
-            <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground pointer-events-none" />
-            <Input
-              placeholder="Search payee or notes…"
-              className="pl-8 h-9 text-sm"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+        <div className="mb-4">
+          {/* Mobile: search + toggle */}
+          <div className="md:hidden">
+            <FilterPanel
+              state={filters}
+              onChange={patchFilters}
+              onClear={clearFilters}
+              properties={properties}
+              hasActive={hasActiveFilters}
+              open={filtersOpen}
+              onToggle={() => setFiltersOpen((o) => !o)}
             />
           </div>
 
-          <div className="flex rounded-md border overflow-hidden h-9 text-xs shrink-0">
-            {(["all", "income", "expense"] as const).map((t) => (
-              <button
-                key={t}
-                className={`px-3 capitalize transition-colors ${
-                  typeFilter === t
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-background hover:bg-muted"
-                }`}
-                onClick={() => setTypeFilter(t)}
-              >
-                {t === "all" ? "All" : t}
-              </button>
-            ))}
-          </div>
-
-          <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v ?? "")}>
-            <SelectTrigger className="w-[150px] h-9 text-xs">
-              <SelectValue placeholder="All Categories" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">All Categories</SelectItem>
-              {CATEGORIES.map((c) => (
-                <SelectItem key={c.name} value={c.name}>
-                  {c.name}
-                </SelectItem>
+          {/* Desktop: full inline filters */}
+          <div className="hidden md:flex flex-wrap gap-2 items-center">
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Search payee or notes…"
+                className="pl-8 h-9 text-sm"
+                value={filters.search}
+                onChange={(e) => patchFilters({ search: e.target.value })}
+              />
+            </div>
+            <div className="flex rounded-md border overflow-hidden h-9 text-xs shrink-0">
+              {(["all", "income", "expense"] as const).map((t) => (
+                <button
+                  key={t}
+                  className={`px-3 capitalize transition-colors ${
+                    filters.typeFilter === t
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background hover:bg-muted"
+                  }`}
+                  onClick={() => patchFilters({ typeFilter: t })}
+                >
+                  {t === "all" ? "All" : t}
+                </button>
               ))}
-            </SelectContent>
-          </Select>
-
-          {properties.length > 1 && (
-            <Select value={propertyFilter} onValueChange={(v) => setPropertyFilter(v ?? "")}>
-              <SelectTrigger className="w-[140px] h-9 text-xs">
-                <SelectValue placeholder="All Properties" />
+            </div>
+            <Select value={filters.categoryFilter} onValueChange={(v) => patchFilters({ categoryFilter: v ?? "" })}>
+              <SelectTrigger className="w-[150px] h-9 text-xs">
+                <SelectValue placeholder="All Categories" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Properties</SelectItem>
-                {properties.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
+                <SelectItem value="">All Categories</SelectItem>
+                {CATEGORIES.map((c) => (
+                  <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          )}
-
-          <Input
-            type="date"
-            className="w-[130px] h-9 text-xs"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            title="From date"
-          />
-          <Input
-            type="date"
-            className="w-[130px] h-9 text-xs"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            title="To date"
-          />
-
-          {hasActiveFilters && (
-            <Button variant="ghost" size="sm" className="h-9 px-2 text-xs" onClick={clearFilters}>
-              <X className="size-3.5 mr-1" />
-              Clear
-            </Button>
-          )}
+            {properties.length > 1 && (
+              <Select value={filters.propertyFilter} onValueChange={(v) => patchFilters({ propertyFilter: v ?? "" })}>
+                <SelectTrigger className="w-[140px] h-9 text-xs">
+                  <SelectValue placeholder="All Properties" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Properties</SelectItem>
+                  {properties.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Input
+              type="date"
+              className="w-[130px] h-9 text-xs"
+              value={filters.dateFrom}
+              onChange={(e) => patchFilters({ dateFrom: e.target.value })}
+              title="From date"
+            />
+            <Input
+              type="date"
+              className="w-[130px] h-9 text-xs"
+              value={filters.dateTo}
+              onChange={(e) => patchFilters({ dateTo: e.target.value })}
+              title="To date"
+            />
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" className="h-9 px-2 text-xs" onClick={clearFilters}>
+                <X className="size-3.5 mr-1" />
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
+      {/* Empty states */}
       {transactions.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center gap-4 border rounded-lg bg-muted/30">
           <Receipt className="size-12 text-muted-foreground" />
           <div>
             <p className="font-medium">No transactions yet</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Add your first transaction to start tracking.
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">Add your first transaction to start tracking.</p>
           </div>
           <Button onClick={handleOpenAdd}>
             <Plus className="size-4 mr-2" />
@@ -303,9 +537,7 @@ export function TransactionsTableSection({
           <SlidersHorizontal className="size-10 text-muted-foreground" />
           <div>
             <p className="font-medium">No transactions match your filters</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Try adjusting or clearing your filters.
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">Try adjusting or clearing your filters.</p>
           </div>
           <Button variant="outline" size="sm" onClick={clearFilters}>
             <X className="size-3.5 mr-1.5" />
@@ -314,7 +546,21 @@ export function TransactionsTableSection({
         </div>
       ) : (
         <>
-          <div className="rounded-lg border overflow-hidden">
+          {/* Mobile: card list */}
+          <div className="md:hidden space-y-2">
+            {pageSlice.map((tx) => (
+              <TransactionCard
+                key={tx.id}
+                tx={tx}
+                onEdit={handleEdit}
+                onDelete={openDelete}
+                onViewAttachments={setViewerTx}
+              />
+            ))}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden md:block rounded-lg border overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
@@ -331,28 +577,16 @@ export function TransactionsTableSection({
               </TableHeader>
               <TableBody>
                 {pageSlice.map((tx) => (
-                  <TableRow
-                    key={tx.id}
-                    className="cursor-pointer"
-                    onClick={() => handleEdit(tx)}
-                  >
-                    <TableCell className="text-muted-foreground text-xs">
-                      {formatDate(tx.date)}
-                    </TableCell>
+                  <TableRow key={tx.id} className="cursor-pointer" onClick={() => handleEdit(tx)}>
+                    <TableCell className="text-muted-foreground text-xs">{formatDate(tx.date)}</TableCell>
                     <TableCell className="font-medium max-w-[140px] truncate">
                       {tx.payee ?? <span className="text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell>
                       {tx.category ? (
                         <div className="flex flex-col gap-0.5">
-                          <Badge
-                            className={`text-xs w-fit ${getCategoryBadgeClass(tx.category)}`}
-                          >
-                            {tx.category}
-                          </Badge>
-                          {tx.subcategory && (
-                            <span className="text-xs text-muted-foreground">{tx.subcategory}</span>
-                          )}
+                          <Badge className={`text-xs w-fit ${getCategoryBadgeClass(tx.category)}`}>{tx.category}</Badge>
+                          {tx.subcategory && <span className="text-xs text-muted-foreground">{tx.subcategory}</span>}
                         </div>
                       ) : (
                         <span className="text-muted-foreground">—</span>
@@ -372,10 +606,7 @@ export function TransactionsTableSection({
                     <TableCell
                       className="text-center"
                       onClick={(e) => {
-                        if (tx.attachments.length > 0) {
-                          e.stopPropagation();
-                          setViewerTx(tx);
-                        }
+                        if (tx.attachments.length > 0) { e.stopPropagation(); setViewerTx(tx); }
                       }}
                     >
                       {tx.attachments.length > 0 ? (
@@ -402,10 +633,7 @@ export function TransactionsTableSection({
                             <Pencil className="size-3.5 mr-2" />
                             Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            variant="destructive"
-                            onClick={() => openDelete(tx.id)}
-                          >
+                          <DropdownMenuItem variant="destructive" onClick={() => openDelete(tx.id)}>
                             <Trash2 className="size-3.5 mr-2" />
                             Delete
                           </DropdownMenuItem>
@@ -418,6 +646,7 @@ export function TransactionsTableSection({
             </Table>
           </div>
 
+          {/* Pagination */}
           <div className="flex items-center justify-between pt-3 text-sm text-muted-foreground">
             <span>
               {hasActiveFilters
@@ -427,20 +656,10 @@ export function TransactionsTableSection({
             </span>
             {totalPages > 1 && (
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page === 0}
-                  onClick={() => setPage((p) => p - 1)}
-                >
+                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
                   Previous
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= totalPages - 1}
-                  onClick={() => setPage((p) => p + 1)}
-                >
+                <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>
                   Next
                 </Button>
               </div>
@@ -451,10 +670,7 @@ export function TransactionsTableSection({
 
       <AddTransactionSheet
         open={sheetOpen}
-        onOpenChange={(o) => {
-          setSheetOpen(o);
-          if (!o) setEditTransaction(undefined);
-        }}
+        onOpenChange={(o) => { setSheetOpen(o); if (!o) setEditTransaction(undefined); }}
         transaction={editTransaction}
         properties={properties}
         allUnits={allUnits}
@@ -464,9 +680,7 @@ export function TransactionsTableSection({
         <DeleteTransactionDialog
           id={deleteId}
           open={!!deleteId}
-          onOpenChange={(o) => {
-            if (!o) closeDelete();
-          }}
+          onOpenChange={(o) => { if (!o) closeDelete(); }}
         />
       )}
 
@@ -485,7 +699,7 @@ export function TransactionsTableSection({
 
 export function TransactionsClient({ transactions, properties, allUnits }: Props) {
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-4 md:p-6 space-y-4">
       <TransactionsTableSection
         transactions={transactions}
         properties={properties}

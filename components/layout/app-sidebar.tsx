@@ -13,6 +13,8 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: Settings, comingSoon: true },
 ];
 
+const mobileNavItems = navItems.filter((i) => !i.comingSoon);
+
 export function AppSidebar() {
   const pathname = usePathname();
 
@@ -44,5 +46,35 @@ export function AppSidebar() {
         })}
       </nav>
     </aside>
+  );
+}
+
+export function MobileBottomNav() {
+  const pathname = usePathname();
+
+  return (
+    <nav
+      className="md:hidden fixed bottom-0 inset-x-0 z-50 flex border-t bg-card/95 backdrop-blur-sm"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      {mobileNavItems.map(({ href, label, icon: Icon }) => {
+        const active = pathname === href || pathname.startsWith(href + "/");
+        return (
+          <Link
+            key={href}
+            href={href}
+            className={cn(
+              "flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors",
+              active ? "text-primary" : "text-muted-foreground"
+            )}
+          >
+            <Icon
+              className={cn("size-5", active ? "text-primary" : "text-muted-foreground")}
+            />
+            {label}
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
