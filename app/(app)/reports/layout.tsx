@@ -10,6 +10,7 @@ const REPORT_TABS = [
   { href: "/reports/annual-summary", label: "Annual Summary" },
   { href: "/reports/by-property", label: "By Property" },
   { href: "/reports/cpa-summary", label: "CPA / Tax" },
+  { href: "/reports/receipt-bundle", label: "Receipt Bundle" },
 ];
 
 function ReportNav() {

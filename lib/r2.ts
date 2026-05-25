@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { Agent } from "https";
 
@@ -30,6 +30,23 @@ export async function uploadToR2(
     })
   );
   return `/api/file/${key}`;
+}
+
+export async function getFromR2(key: string): Promise<Buffer | null> {
+  try {
+    const res = await r2.send(new GetObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME!,
+      Key: key,
+    }));
+    if (!res.Body) return null;
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of res.Body as AsyncIterable<Uint8Array>) {
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+  } catch {
+    return null;
+  }
 }
 
 export async function deleteFromR2(urlOrKey: string): Promise<void> {
