@@ -1,25 +1,25 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
-} from "recharts";
-import { Tag } from "lucide-react";
+import { useMemo, useState } from "react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { DateRangePicker, type DateRangeValue } from "@/components/ui/date-range-picker";
 import { ExportButtons, type ExportColumn, type ExportSection } from "@/components/reports/export-buttons";
-import { fmt, fmtPct, type ExpenseSummaryRow } from "@/lib/report-utils";
-import { getCategoryBadgeClass, CATEGORIES } from "@/lib/categories";
-import { Badge } from "@/components/ui/badge";
+import { fmt, CASH_FLOW_SECTIONS } from "@/lib/report-utils";
+import { cn } from "@/lib/utils";
+import type { Interval, ReportColumn, RawRow } from "./page";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Property = { id: string; name: string };
 type Unit = { id: string; propertyId: string | null; name: string };
 
 type Props = {
-  data: ExpenseSummaryRow[];
-  grandTotal: number;
+  rawRows: RawRow[];
+  columns: ReportColumn[];
+  interval: Interval;
   userProperties: Property[];
   allUnits: Unit[];
   currentPropertyId: string;
@@ -29,52 +29,230 @@ type Props = {
   propertyName: string;
 };
 
-function getCategoryColor(category: string): string {
-  const cat = CATEGORIES.find((c) => c.name === category);
-  if (!cat) return "#94a3b8";
-  const cls = cat.badgeClass;
-  if (cls.includes("green")) return "#16a34a";
-  if (cls.includes("zinc")) return "#71717a";
-  if (cls.includes("blue")) return "#2563eb";
-  if (cls.includes("orange")) return "#ea580c";
-  if (cls.includes("purple")) return "#9333ea";
-  if (cls.includes("yellow")) return "#ca8a04";
-  if (cls.includes("red")) return "#dc2626";
-  if (cls.includes("cyan")) return "#0891b2";
-  if (cls.includes("indigo")) return "#4f46e5";
-  if (cls.includes("amber")) return "#d97706";
-  if (cls.includes("pink")) return "#db2777";
-  if (cls.includes("slate")) return "#64748b";
-  return "#94a3b8";
+type DisplayRow = {
+  key: string;
+  level: "section-header" | "category" | "subcategory" | "section-total" | "calculated";
+  label: string;
+  values: Record<string, number>;
+  total: number;
+  indent: number;
+  bold: boolean;
+  calcType?: "noi" | "ncf";
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmtAccounting(n: number): string {
+  if (n === 0) return "—";
+  if (n < 0) return `(${fmt(Math.abs(n))})`;
+  return fmt(n);
 }
 
-function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ExpenseSummaryRow }> }) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
-  return (
-    <div className="rounded-lg border bg-popover px-3 py-2 shadow-md text-sm">
-      <p className="font-medium">{d.category}</p>
-      <p className="text-muted-foreground">${fmt(d.total)} ({fmtPct(d.pct)})</p>
-    </div>
-  );
+function buildRows(
+  rawRows: RawRow[],
+  colIds: string[],
+  showSub: boolean
+): DisplayRow[] {
+  // Build lookup: type → category → subcategory → colKey → total
+  type SubMap = Map<string | null, Map<string, number>>;
+  type CatMap = Map<string, SubMap>;
+  const lookup = new Map<string, CatMap>();
+
+  for (const row of rawRows) {
+    const t = row.type;
+    const cat = row.category ?? "Uncategorized";
+    const sub = row.subcategory;
+    if (!lookup.has(t)) lookup.set(t, new Map());
+    const catMap = lookup.get(t)!;
+    if (!catMap.has(cat)) catMap.set(cat, new Map());
+    const subMap = catMap.get(cat)!;
+    if (!subMap.has(sub)) subMap.set(sub, new Map());
+    const colMap = subMap.get(sub)!;
+    colMap.set(row.colKey, (colMap.get(row.colKey) ?? 0) + row.total);
+  }
+
+  const rows: DisplayRow[] = [];
+  const sectionTotals: Record<string, Record<string, number>> = {};
+
+  for (const section of CASH_FLOW_SECTIONS) {
+    const { id, label, categories, isIncome } = section;
+    const typeKey = isIncome ? "income" : "expense";
+    const catMap = lookup.get(typeKey);
+
+    const sectionColTotals: Record<string, number> = {};
+    colIds.forEach((c) => (sectionColTotals[c] = 0));
+    let sectionTotal = 0;
+    let sectionHasData = false;
+
+    const categoryRows: DisplayRow[] = [];
+
+    for (const cat of categories) {
+      const subMap = catMap?.get(cat);
+      if (!subMap) continue;
+
+      // Compute category totals
+      const catColTotals: Record<string, number> = {};
+      colIds.forEach((c) => (catColTotals[c] = 0));
+      let catTotal = 0;
+
+      for (const [, colMap] of subMap.entries()) {
+        for (const [colId, amt] of colMap.entries()) {
+          catColTotals[colId] = (catColTotals[colId] ?? 0) + amt;
+          catTotal += amt;
+        }
+      }
+
+      colIds.forEach((c) => { sectionColTotals[c] += catColTotals[c] ?? 0; });
+      sectionTotal += catTotal;
+      sectionHasData = true;
+
+      if (showSub) {
+        // Subcategory rows sorted by name
+        const sortedSubs = [...subMap.entries()]
+          .filter(([sub]) => sub !== null)
+          .sort((a, b) => (a[0] ?? "").localeCompare(b[0] ?? ""));
+
+        for (const [sub, colMap] of sortedSubs) {
+          const subColTotals: Record<string, number> = {};
+          colIds.forEach((c) => (subColTotals[c] = 0));
+          let subTotal = 0;
+          for (const [colId, amt] of colMap.entries()) {
+            subColTotals[colId] = amt;
+            subTotal += amt;
+          }
+          if (subTotal === 0) continue;
+          categoryRows.push({
+            key: `${id}-${cat}-${sub}`,
+            level: "subcategory",
+            label: sub ?? "",
+            values: subColTotals,
+            total: subTotal,
+            indent: 2,
+            bold: false,
+          });
+        }
+        if (catTotal > 0) {
+          categoryRows.push({
+            key: `${id}-${cat}-cattotal`,
+            level: "category",
+            label: `Total ${cat}`,
+            values: catColTotals,
+            total: catTotal,
+            indent: 1,
+            bold: true,
+          });
+        }
+      } else {
+        if (catTotal > 0) {
+          categoryRows.push({
+            key: `${id}-${cat}`,
+            level: "category",
+            label: cat,
+            values: catColTotals,
+            total: catTotal,
+            indent: 1,
+            bold: false,
+          });
+        }
+      }
+    }
+
+    if (!sectionHasData) continue;
+
+    // Section header
+    rows.push({
+      key: `section-${id}`,
+      level: "section-header",
+      label,
+      values: {},
+      total: 0,
+      indent: 0,
+      bold: true,
+    });
+
+    rows.push(...categoryRows);
+
+    // Section total (always show)
+    rows.push({
+      key: `section-total-${id}`,
+      level: "section-total",
+      label: `Total ${label}`,
+      values: sectionColTotals,
+      total: sectionTotal,
+      indent: 0,
+      bold: true,
+    });
+
+    sectionTotals[id] = sectionColTotals;
+
+    // Insert NOI after Operating Expenses
+    if (id === "operating") {
+      const incomeC = sectionTotals["income"] ?? {};
+      const opC = sectionColTotals;
+      const noiVals: Record<string, number> = {};
+      colIds.forEach((c) => (noiVals[c] = (incomeC[c] ?? 0) - (opC[c] ?? 0)));
+      const noiTotal = colIds.reduce((s, c) => s + noiVals[c], 0);
+      rows.push({
+        key: "noi",
+        level: "calculated",
+        label: "Net Operating Income",
+        values: noiVals,
+        total: noiTotal,
+        indent: 0,
+        bold: true,
+        calcType: "noi",
+      });
+      sectionTotals["noi"] = noiVals;
+    }
+  }
+
+  // Net Cash Flow at bottom
+  const noiC = sectionTotals["noi"] ?? {};
+  const mortC = sectionTotals["mortgage"] ?? {};
+  const capC = sectionTotals["capital"] ?? {};
+  const ncfVals: Record<string, number> = {};
+  colIds.forEach((c) => (ncfVals[c] = (noiC[c] ?? 0) - (mortC[c] ?? 0) - (capC[c] ?? 0)));
+  const ncfTotal = colIds.reduce((s, c) => s + ncfVals[c], 0);
+  rows.push({
+    key: "ncf",
+    level: "calculated",
+    label: "Net Cash Flow",
+    values: ncfVals,
+    total: ncfTotal,
+    indent: 0,
+    bold: true,
+    calcType: "ncf",
+  });
+
+  return rows;
 }
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function ExpenseSummaryClient({
-  data, grandTotal, userProperties, allUnits,
+  rawRows, columns, interval, userProperties, allUnits,
   currentPropertyId, currentUnitId, currentDateRange, periodLabel, propertyName,
 }: Props) {
   const router = useRouter();
+  const [showSub, setShowSub] = useState(false);
+
+  const colIds = columns.map((c) => c.id);
+  const displayRows = useMemo(() => buildRows(rawRows, colIds, showSub), [rawRows, colIds, showSub]);
 
   const visibleUnits = allUnits.filter((u) => !currentPropertyId || u.propertyId === currentPropertyId);
 
-  function buildUrl(patch: { property?: string; unit?: string; range?: DateRangeValue }) {
+  function buildUrl(patch: {
+    property?: string; unit?: string; range?: DateRangeValue; interval?: Interval;
+  }) {
     const params = new URLSearchParams();
     const property = patch.property !== undefined ? patch.property : currentPropertyId;
     const unit = patch.unit !== undefined ? patch.unit : currentUnitId;
     const range = patch.range !== undefined ? patch.range : currentDateRange;
+    const iv = patch.interval !== undefined ? patch.interval : interval;
 
     if (property) params.set("property", property);
     if (unit) params.set("unit", unit);
+    if (iv !== "by-month") params.set("interval", iv);
     if (range.preset !== "all") {
       params.set("preset", range.preset);
       if (range.start) params.set("start", range.start);
@@ -84,29 +262,38 @@ export function ExpenseSummaryClient({
     return `/reports/expense-summary${qs ? `?${qs}` : ""}`;
   }
 
-  // Export data
+  // Build report header label
+  const reportTitle = propertyName
+    ? `Net Cash Flow for ${propertyName}`
+    : "Net Cash Flow for All Properties";
+
+  // Export
   const exportColumns: ExportColumn[] = [
-    { header: "Category", key: "category" },
+    { header: "Line Item", key: "label" },
+    ...columns.map((c) => ({ header: c.label, key: c.id, isCurrency: true })),
     { header: "Total", key: "total", isCurrency: true },
-    { header: "% of Total", key: "pct" },
   ];
-  const exportRows = data.map((r) => ({ category: r.category, total: r.total, pct: fmtPct(r.pct) }));
-  const exportSections: ExportSection[] = [{
-    title: "Expense Summary",
-    rows: exportRows,
-    totalsRow: { category: "Total", total: grandTotal, pct: "100.0%" },
-  }];
+  const exportRows = displayRows
+    .filter((r) => r.level !== "section-header" && r.total !== 0)
+    .map((r) => {
+      const row: Record<string, string | number | null> = { label: r.label, total: r.total };
+      colIds.forEach((c) => { row[c] = r.values[c] ?? null; });
+      return row;
+    });
+  const exportSections: ExportSection[] = [{ title: "Net Cash Flow", rows: exportRows }];
 
   return (
-    <div className="p-4 md:p-6 space-y-5">
+    <div className="p-4 md:p-6 space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold">Expense Summary</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{periodLabel}</p>
+          <h1 className="text-xl font-bold">Net Cash Flow</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Income and expenses by category, including debt service and capital expenses.
+          </p>
         </div>
         <ExportButtons
-          reportName="Expense Summary"
+          reportName="Net Cash Flow"
           propertyLabel={propertyName}
           periodLabel={periodLabel}
           sections={exportSections}
@@ -114,119 +301,193 @@ export function ExpenseSummaryClient({
         />
       </div>
 
-      {/* Filters */}
+      {/* ── Filter bar (matching Stessa) ── */}
       <div className="flex flex-wrap gap-2 items-center">
+        {/* Property */}
         {userProperties.length > 0 && (
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground px-0.5">Property</span>
+            <Select
+              value={currentPropertyId || "all"}
+              onValueChange={(v) => router.push(buildUrl({ property: (v ?? "") === "all" ? "" : (v ?? ""), unit: "" }))}
+            >
+              <SelectTrigger className="!h-9 text-sm w-[180px] bg-background">
+                <SelectValue placeholder="All Properties">
+                  {currentPropertyId
+                    ? (userProperties.find((p) => p.id === currentPropertyId)?.name ?? "")
+                    : undefined}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Properties</SelectItem>
+                {userProperties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Date Range */}
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground px-0.5">Date Range</span>
+          <DateRangePicker
+            value={currentDateRange}
+            onChange={(range) => router.push(buildUrl({ range }))}
+            className="!h-9 text-sm"
+          />
+        </div>
+
+        {/* Reporting Interval */}
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground px-0.5">Reporting Interval</span>
           <Select
-            value={currentPropertyId || "all"}
-            onValueChange={(v) => router.push(buildUrl({ property: (v ?? "") === "all" ? "" : (v ?? ""), unit: "" }))}
+            value={interval}
+            onValueChange={(v) => router.push(buildUrl({ interval: (v ?? "by-month") as Interval }))}
           >
-            <SelectTrigger className="!h-9 text-sm w-[180px] bg-background">
-              <SelectValue placeholder="All Properties">
-                {currentPropertyId ? (userProperties.find((p) => p.id === currentPropertyId)?.name ?? "") : undefined}
+            <SelectTrigger className="!h-9 text-sm w-[150px] bg-background">
+              <SelectValue>
+                {interval === "by-month" ? "By Month" : "By Property"}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Properties</SelectItem>
-              {userProperties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              <SelectItem value="by-month">By Month</SelectItem>
+              <SelectItem value="by-property">{currentPropertyId ? "By Unit" : "By Property"}</SelectItem>
             </SelectContent>
           </Select>
-        )}
-        {visibleUnits.length > 0 && (
+        </div>
+
+        {/* Category level */}
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground px-0.5">Category</span>
           <Select
-            value={currentUnitId || "all"}
-            onValueChange={(v) => router.push(buildUrl({ unit: (v ?? "") === "all" ? "" : (v ?? "") }))}
+            value={showSub ? "by-subcategory" : "by-category"}
+            onValueChange={(v) => setShowSub((v ?? "by-category") === "by-subcategory")}
           >
             <SelectTrigger className="!h-9 text-sm w-[160px] bg-background">
-              <SelectValue placeholder="All Units">
-                {currentUnitId ? (allUnits.find((u) => u.id === currentUnitId)?.name ?? "") : undefined}
+              <SelectValue>
+                {showSub ? "By Sub-Category" : "By Category"}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Units</SelectItem>
-              {visibleUnits.map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+              <SelectItem value="by-category">By Category</SelectItem>
+              <SelectItem value="by-subcategory">By Sub-Category</SelectItem>
             </SelectContent>
           </Select>
-        )}
-        <DateRangePicker
-          value={currentDateRange}
-          onChange={(range) => router.push(buildUrl({ range }))}
-          className="!h-9 text-sm"
-        />
+        </div>
       </div>
 
-      {data.length === 0 ? (
-        <div className="rounded-xl border bg-muted/30 flex flex-col items-center justify-center py-20 gap-3">
-          <Tag className="size-8 text-muted-foreground/50" />
-          <p className="text-sm text-muted-foreground">No expenses recorded for this period</p>
+      {/* ── Report title ── */}
+      <div className="pt-1">
+        <p className="font-semibold text-base">{reportTitle}</p>
+        <p className="text-sm text-muted-foreground">
+          {interval === "by-month"
+            ? `From ${columns[0]?.label ?? ""} through ${columns[columns.length - 1]?.label ?? ""}`
+            : periodLabel}
+        </p>
+      </div>
+
+      {/* ── Table ── */}
+      {displayRows.length === 0 ? (
+        <div className="rounded-xl border bg-muted/30 flex items-center justify-center py-20">
+          <p className="text-sm text-muted-foreground">No transactions recorded for this period</p>
         </div>
       ) : (
-        <div className="grid gap-5 lg:grid-cols-2">
-          {/* Bar chart */}
-          <div className="rounded-xl border bg-card p-4">
-            <h2 className="text-sm font-semibold mb-3">By Category</h2>
-            <ResponsiveContainer width="100%" height={Math.max(200, data.length * 44)}>
-              <BarChart data={data} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 0 }} barSize={16}>
-                <XAxis
-                  type="number"
-                  tickFormatter={(v) => `$${v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v}`}
-                  tick={{ fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="category"
-                  width={130}
-                  tick={{ fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: "hsl(var(--muted))" }} />
-                <Bar dataKey="total" radius={[0, 4, 4, 0]}>
-                  {data.map((entry) => (
-                    <Cell key={entry.category} fill={getCategoryColor(entry.category)} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Table */}
-          <div className="rounded-xl border bg-card overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/40">
-                  <th className="text-left px-4 py-2.5 font-medium text-xs text-muted-foreground uppercase tracking-wide">Category</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-xs text-muted-foreground uppercase tracking-wide">Total</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-xs text-muted-foreground uppercase tracking-wide">% of Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {data.map((row) => (
-                  <tr key={row.category} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-2.5">
-                      <Badge variant="outline" className={`text-xs ${getCategoryBadgeClass(row.category)}`}>
-                        {row.category}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-medium tabular-nums text-red-600">
-                      ${fmt(row.total)}
-                    </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
-                      {fmtPct(row.pct)}
-                    </td>
-                  </tr>
+        <div className="rounded-xl border bg-card overflow-x-auto">
+          <table className="w-full text-sm" style={{ minWidth: `${Math.max(600, columns.length * 110 + 220)}px` }}>
+            <thead>
+              <tr className="border-b bg-muted/40">
+                <th className="text-left px-4 py-2.5 font-medium text-xs text-muted-foreground uppercase tracking-wide sticky left-0 bg-muted/40 min-w-[200px]">
+                  Line Item
+                </th>
+                {columns.map((col) => (
+                  <th key={col.id} className="text-right px-3 py-2.5 font-medium text-xs text-muted-foreground uppercase tracking-wide whitespace-nowrap min-w-[90px]">
+                    {col.label}
+                  </th>
                 ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t bg-muted/20">
-                  <td className="px-4 py-2.5 font-semibold">Total</td>
-                  <td className="px-4 py-2.5 text-right font-bold tabular-nums text-red-600">${fmt(grandTotal)}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">100.0%</td>
-                </tr>
-              </tfoot>
-            </table>
+                <th className="text-right px-4 py-2.5 font-medium text-xs text-muted-foreground uppercase tracking-wide min-w-[90px]">
+                  Total
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayRows.map((row) => {
+                if (row.level === "section-header") {
+                  return (
+                    <tr key={row.key} className="bg-muted/20 border-t">
+                      <td
+                        colSpan={columns.length + 2}
+                        className="px-4 py-2 font-semibold text-xs uppercase tracking-wide text-foreground sticky left-0 bg-muted/20"
+                      >
+                        {row.label}
+                      </td>
+                    </tr>
+                  );
+                }
+
+                const isCalc = row.level === "calculated";
+                const isTotal = row.level === "section-total";
+                const isCatTotal = row.level === "category" && row.label.startsWith("Total ");
+                const rowBg = isCalc ? "bg-muted/30 border-t-2 border-border" : "";
+
+                return (
+                  <tr
+                    key={row.key}
+                    className={cn(
+                      "border-t transition-colors",
+                      isCalc ? rowBg : "hover:bg-muted/20",
+                      isTotal ? "bg-muted/10" : ""
+                    )}
+                  >
+                    <td
+                      className={cn(
+                        "px-4 py-2 sticky left-0",
+                        isCalc ? "bg-muted/30 font-bold" : isTotal ? "bg-muted/10 font-semibold" : "bg-card",
+                        row.indent === 2 ? "pl-10 text-muted-foreground" : row.indent === 1 ? "pl-6" : "",
+                        isCatTotal ? "pl-6 font-semibold" : ""
+                      )}
+                    >
+                      {row.label}
+                    </td>
+                    {columns.map((col) => {
+                      const v = row.values[col.id] ?? 0;
+                      const isNeg = v < 0;
+                      return (
+                        <td
+                          key={col.id}
+                          className={cn(
+                            "px-3 py-2 text-right tabular-nums",
+                            v === 0 ? "text-muted-foreground/40" : "",
+                            isNeg ? "text-red-600" : "",
+                            row.bold ? "font-semibold" : ""
+                          )}
+                        >
+                          {fmtAccounting(v)}
+                        </td>
+                      );
+                    })}
+                    {/* Total column */}
+                    {(() => {
+                      const t = row.total;
+                      const isNeg = t < 0;
+                      return (
+                        <td
+                          className={cn(
+                            "px-4 py-2 text-right tabular-nums",
+                            t === 0 ? "text-muted-foreground/40" : "",
+                            isNeg ? "text-red-600" : "",
+                            row.bold ? "font-bold" : "font-medium"
+                          )}
+                        >
+                          {fmtAccounting(t)}
+                        </td>
+                      );
+                    })()}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div className="px-4 py-2.5 text-xs text-muted-foreground border-t">
+            Report Created: {new Date().toLocaleString("en-US", { dateStyle: "long", timeStyle: "short" })}
           </div>
         </div>
       )}

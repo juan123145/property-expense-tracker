@@ -544,14 +544,14 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
             {properties.length > 0 && (
               <Select value={filters.propertyFilter || "all"} onValueChange={(v) => patchFilters({ propertyFilter: (v ?? "") === "all" ? "" : (v ?? "") })}>
                 <SelectTrigger className="!h-9 text-sm w-[180px] bg-background">
-                  <SelectValue placeholder="All properties">
+                  <SelectValue placeholder="All Properties">
                     {filters.propertyFilter
                       ? (properties.find((p) => p.id === filters.propertyFilter)?.name ?? "")
                       : undefined}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent align="start">
-                  <SelectItem value="all">All properties</SelectItem>
+                  <SelectItem value="all">All Properties</SelectItem>
                   {properties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>

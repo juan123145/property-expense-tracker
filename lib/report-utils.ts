@@ -16,6 +16,31 @@ export const EXPENSE_CATEGORIES = CATEGORIES.filter(
   (c) => c.name !== "Income" && c.name !== "Transfers"
 );
 
+// ─── Net Cash Flow section definitions (Stessa-style) ────────────────────────
+
+export type CashFlowSectionDef = {
+  id: string;
+  label: string;
+  categories: string[];
+  isIncome: boolean;
+};
+
+export const CASH_FLOW_SECTIONS: CashFlowSectionDef[] = [
+  { id: "income", label: "Income", categories: ["Income"], isIncome: true },
+  {
+    id: "operating",
+    label: "Operating Expenses",
+    categories: [
+      "Admin & Other", "Legal & Professional", "Insurance",
+      "Management Fees", "Repairs & Maintenance", "Utilities",
+      "Taxes", "Security Deposits",
+    ],
+    isIncome: false,
+  },
+  { id: "mortgage", label: "Mortgage & Loan Expenses", categories: ["Mortgages & Loans"], isIncome: false },
+  { id: "capital", label: "Capital Expenses", categories: ["Capital Expenses"], isIncome: false },
+];
+
 // ─── Schedule E Groupings (JUA-54) ───────────────────────────────────────────
 
 export type ScheduleESection = {
