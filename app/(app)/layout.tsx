@@ -1,25 +1,32 @@
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { transactions } from "@/db/schema";
+import { transactions, properties, units } from "@/db/schema";
 import { eq, and, count } from "drizzle-orm";
 import { AppSidebar, MobileBottomNav } from "@/components/layout/app-sidebar";
 import { AppLogo } from "@/components/brand/logo";
+import { QuickAddFAB } from "@/components/ui/quick-add-fab";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireAuth();
 
-  const [row] = await db
-    .select({ value: count() })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.userId, user.id),
-        eq(transactions.needsReview, true),
-        eq(transactions.isDeleted, false)
-      )
-    );
+  const [nrRow, userProperties, allUnits] = await Promise.all([
+    db
+      .select({ value: count() })
+      .from(transactions)
+      .where(and(eq(transactions.userId, user.id), eq(transactions.needsReview, true), eq(transactions.isDeleted, false)))
+      .then((r) => r[0]),
 
-  const needsReviewCount = row?.value ?? 0;
+    db
+      .select({ id: properties.id, name: properties.name })
+      .from(properties)
+      .where(and(eq(properties.userId, user.id), eq(properties.isArchived, false))),
+
+    db
+      .select({ id: units.id, propertyId: units.propertyId, name: units.name })
+      .from(units),
+  ]);
+
+  const needsReviewCount = nrRow?.value ?? 0;
 
   return (
     <div className="flex min-h-screen">
@@ -35,6 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </main>
 
       <MobileBottomNav needsReviewCount={needsReviewCount} />
+      <QuickAddFAB properties={userProperties} allUnits={allUnits} />
     </div>
   );
 }
