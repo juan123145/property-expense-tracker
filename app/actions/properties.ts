@@ -2,10 +2,12 @@
 
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { properties, units } from "@/db/schema";
+import { properties, units, transactions } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+
+type UnitEdit = { id?: string; name: string; deleted: boolean };
 
 export async function createProperty(_prev: unknown, formData: FormData) {
   const user = await requireAuth();
@@ -63,6 +65,26 @@ export async function updateProperty(_prev: unknown, formData: FormData) {
       notes: (formData.get("notes") as string) || null,
     })
     .where(and(eq(properties.id, id), eq(properties.userId, user.id)));
+
+  // Process unit changes
+  const unitsRaw = formData.get("unitsJson") as string | null;
+  if (unitsRaw) {
+    let edits: UnitEdit[] = [];
+    try { edits = JSON.parse(unitsRaw); } catch { /* ignore */ }
+
+    for (const unit of edits) {
+      const trimmedName = unit.name.trim();
+      if (unit.id && unit.deleted) {
+        // Null out any transactions referencing this unit before deleting
+        await db.update(transactions).set({ unitId: null }).where(eq(transactions.unitId, unit.id));
+        await db.delete(units).where(and(eq(units.id, unit.id), eq(units.propertyId, id)));
+      } else if (unit.id && !unit.deleted && trimmedName) {
+        await db.update(units).set({ name: trimmedName }).where(eq(units.id, unit.id));
+      } else if (!unit.id && !unit.deleted && trimmedName) {
+        await db.insert(units).values({ propertyId: id, name: trimmedName });
+      }
+    }
+  }
 
   revalidatePath("/properties");
   revalidatePath(`/properties/${id}`);

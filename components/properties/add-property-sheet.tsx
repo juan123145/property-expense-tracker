@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Plus, Trash2 } from "lucide-react";
 
 type Property = {
   id: string;
@@ -31,20 +32,36 @@ type Property = {
   notes: string | null;
 };
 
+type UnitRow = { id?: string; name: string; deleted: boolean };
+
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   property?: Property;
+  existingUnits?: Array<{ id: string; name: string }>;
 };
 
 const PROPERTY_TYPES = ["Single Family", "Multi-Family", "Condo", "Commercial", "Other"];
 
-export function AddPropertySheet({ open, onOpenChange, property }: Props) {
+export function AddPropertySheet({ open, onOpenChange, property, existingUnits = [] }: Props) {
   const isEdit = !!property;
   const action = isEdit ? updateProperty : createProperty;
   const [state, formAction, pending] = useActionState(action, null);
   const formRef = useRef<HTMLFormElement>(null);
   const [propertyType, setPropertyType] = useState(property?.type ?? "");
+  const [unitRows, setUnitRows] = useState<UnitRow[]>([]);
+
+  // Reset unit rows when sheet opens/closes or property changes
+  useEffect(() => {
+    if (open) {
+      setPropertyType(property?.type ?? "");
+      if (isEdit) {
+        setUnitRows(existingUnits.map((u) => ({ id: u.id, name: u.name, deleted: false })));
+      } else {
+        setUnitRows([]);
+      }
+    }
+  }, [open, property, isEdit, existingUnits]);
 
   useEffect(() => {
     if (state?.success) {
@@ -52,15 +69,33 @@ export function AddPropertySheet({ open, onOpenChange, property }: Props) {
       onOpenChange(false);
       formRef.current?.reset();
       setPropertyType("");
+      setUnitRows([]);
     }
     if (state?.error) {
       toast.error(state.error);
     }
   }, [state, isEdit, onOpenChange]);
 
-  useEffect(() => {
-    if (open) setPropertyType(property?.type ?? "");
-  }, [open, property]);
+  function addUnit() {
+    const visibleCount = unitRows.filter((u) => !u.deleted).length;
+    setUnitRows((rows) => [...rows, { name: `Unit ${visibleCount + 1}`, deleted: false }]);
+  }
+
+  function removeUnit(index: number) {
+    setUnitRows((rows) =>
+      rows.map((r, i) => {
+        if (i !== index) return r;
+        // Existing unit: mark deleted; new unit: remove entirely
+        return r.id ? { ...r, deleted: true } : { ...r, deleted: true };
+      })
+    );
+  }
+
+  function renameUnit(index: number, value: string) {
+    setUnitRows((rows) => rows.map((r, i) => (i === index ? { ...r, name: value } : r)));
+  }
+
+  const visibleUnits = unitRows.map((u, i) => ({ ...u, _index: i })).filter((u) => !u.deleted);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -70,6 +105,9 @@ export function AddPropertySheet({ open, onOpenChange, property }: Props) {
         </SheetHeader>
         <form ref={formRef} action={formAction} className="mt-6 space-y-4 px-4 pb-6">
           {isEdit && <input type="hidden" name="id" value={property.id} />}
+          {isEdit && (
+            <input type="hidden" name="unitsJson" value={JSON.stringify(unitRows)} />
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="name">Property Name *</Label>
@@ -113,13 +151,71 @@ export function AddPropertySheet({ open, onOpenChange, property }: Props) {
             </div>
           </div>
 
-          {!isEdit && (
-            <div className="space-y-1.5">
-              <Label htmlFor="numberOfUnits">Number of Units</Label>
-              <Input id="numberOfUnits" name="numberOfUnits" type="number" min="0" max="100" defaultValue="0" />
-              <p className="text-xs text-muted-foreground">Units will be created automatically (Unit 1, Unit 2…)</p>
+          {/* Units section */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Units</Label>
+              {isEdit && (
+                <span className="text-xs text-muted-foreground">
+                  {visibleUnits.length} unit{visibleUnits.length !== 1 ? "s" : ""}
+                </span>
+              )}
             </div>
-          )}
+
+            {isEdit ? (
+              <>
+                {visibleUnits.length === 0 && (
+                  <p className="text-xs text-muted-foreground py-1">No units yet. Add one below.</p>
+                )}
+                <div className="space-y-2">
+                  {visibleUnits.map((unit) => (
+                    <div key={unit._index} className="flex items-center gap-2">
+                      <Input
+                        value={unit.name}
+                        onChange={(e) => renameUnit(unit._index, e.target.value)}
+                        placeholder="Unit name"
+                        className="h-8 text-sm"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive shrink-0"
+                        onClick={() => removeUnit(unit._index)}
+                        aria-label="Remove unit"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-1.5 text-xs h-8"
+                  onClick={addUnit}
+                >
+                  <Plus className="size-3.5" />
+                  Add unit
+                </Button>
+              </>
+            ) : (
+              <>
+                <Input
+                  id="numberOfUnits"
+                  name="numberOfUnits"
+                  type="number"
+                  min="0"
+                  max="100"
+                  defaultValue="0"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Units will be created automatically (Unit 1, Unit 2…)
+                </p>
+              </>
+            )}
+          </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="notes">Notes</Label>

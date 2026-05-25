@@ -26,7 +26,7 @@ type Props = {
   units: Unit[];
 };
 
-export function PropertyDetailClient({ property, units: _units }: Props) {
+export function PropertyDetailClient({ property, units }: Props) {
   const [editOpen, setEditOpen] = useState(false);
   const [addUnitOpen, setAddUnitOpen] = useState(false);
 
@@ -44,7 +44,12 @@ export function PropertyDetailClient({ property, units: _units }: Props) {
         <ArchivePropertyButton propertyId={property.id} isArchived={property.isArchived ?? false} />
       </div>
 
-      <AddPropertySheet open={editOpen} onOpenChange={setEditOpen} property={property} />
+      <AddPropertySheet
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        property={property}
+        existingUnits={units}
+      />
       <AddUnitSheet open={addUnitOpen} onOpenChange={setAddUnitOpen} propertyId={property.id} />
     </>
   );

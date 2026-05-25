@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { PropertyDetailClient } from "./property-detail-client";
+import { PropertyDetailClient } from "@/components/properties/property-detail-client";
 import { TransactionsTableSection } from "@/app/(app)/transactions/transactions-client";
 
 async function getProperty(id: string, userId: string) {
