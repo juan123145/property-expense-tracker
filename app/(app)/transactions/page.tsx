@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { transactions, properties, units } from "@/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { transactions, properties, units, transactionAttachments } from "@/db/schema";
+import { eq, and, desc, asc } from "drizzle-orm";
 import { TransactionsClient } from "./transactions-client";
 
 async function getTransactions(userId: string) {
@@ -17,9 +17,6 @@ async function getTransactions(userId: string) {
       propertyId: transactions.propertyId,
       unitId: transactions.unitId,
       notes: transactions.notes,
-      attachmentUrl: transactions.attachmentUrl,
-      attachmentName: transactions.attachmentName,
-      attachmentSizeKb: transactions.attachmentSizeKb,
       needsReview: transactions.needsReview,
       propertyName: properties.name,
       unitName: units.name,
@@ -29,6 +26,21 @@ async function getTransactions(userId: string) {
     .leftJoin(units, eq(transactions.unitId, units.id))
     .where(and(eq(transactions.userId, userId), eq(transactions.isDeleted, false)))
     .orderBy(desc(transactions.date), desc(transactions.createdAt));
+}
+
+async function getAttachments(userId: string) {
+  return db
+    .select({
+      transactionId: transactionAttachments.transactionId,
+      id: transactionAttachments.id,
+      url: transactionAttachments.url,
+      name: transactionAttachments.name,
+      sizeKb: transactionAttachments.sizeKb,
+    })
+    .from(transactionAttachments)
+    .innerJoin(transactions, eq(transactionAttachments.transactionId, transactions.id))
+    .where(and(eq(transactions.userId, userId), eq(transactions.isDeleted, false)))
+    .orderBy(transactionAttachments.transactionId, asc(transactionAttachments.position));
 }
 
 async function getProperties(userId: string) {
@@ -49,11 +61,24 @@ async function getAllUnits(userId: string) {
 export default async function TransactionsPage() {
   const user = await requireAuth();
 
-  const [txList, propList, unitList] = await Promise.all([
+  const [txRows, attachmentRows, propList, unitList] = await Promise.all([
     getTransactions(user.id),
+    getAttachments(user.id),
     getProperties(user.id),
     getAllUnits(user.id),
   ]);
+
+  const attachmentsByTxId = new Map<string, Array<{ id: string; url: string; name: string | null; sizeKb: number | null }>>();
+  for (const a of attachmentRows) {
+    const list = attachmentsByTxId.get(a.transactionId) ?? [];
+    list.push({ id: a.id, url: a.url, name: a.name, sizeKb: a.sizeKb });
+    attachmentsByTxId.set(a.transactionId, list);
+  }
+
+  const txList = txRows.map((tx) => ({
+    ...tx,
+    attachments: attachmentsByTxId.get(tx.id) ?? [],
+  }));
 
   return (
     <TransactionsClient

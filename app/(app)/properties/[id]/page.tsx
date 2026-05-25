@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { properties, units, transactions } from "@/db/schema";
-import { eq, and, sum, desc } from "drizzle-orm";
+import { properties, units, transactions, transactionAttachments } from "@/db/schema";
+import { eq, and, sum, desc, asc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight, MapPin } from "lucide-react";
@@ -23,7 +23,7 @@ async function getUnits(propertyId: string) {
 }
 
 async function getPropertyTransactions(propertyId: string, userId: string) {
-  return db
+  const txRows = await db
     .select({
       id: transactions.id,
       date: transactions.date,
@@ -35,9 +35,6 @@ async function getPropertyTransactions(propertyId: string, userId: string) {
       propertyId: transactions.propertyId,
       unitId: transactions.unitId,
       notes: transactions.notes,
-      attachmentUrl: transactions.attachmentUrl,
-      attachmentName: transactions.attachmentName,
-      attachmentSizeKb: transactions.attachmentSizeKb,
       needsReview: transactions.needsReview,
       propertyName: properties.name,
       unitName: units.name,
@@ -53,6 +50,34 @@ async function getPropertyTransactions(propertyId: string, userId: string) {
       )
     )
     .orderBy(desc(transactions.date), desc(transactions.createdAt));
+
+  const attachmentRows = await db
+    .select({
+      transactionId: transactionAttachments.transactionId,
+      id: transactionAttachments.id,
+      url: transactionAttachments.url,
+      name: transactionAttachments.name,
+      sizeKb: transactionAttachments.sizeKb,
+    })
+    .from(transactionAttachments)
+    .innerJoin(transactions, eq(transactionAttachments.transactionId, transactions.id))
+    .where(
+      and(
+        eq(transactions.propertyId, propertyId),
+        eq(transactions.userId, userId),
+        eq(transactions.isDeleted, false)
+      )
+    )
+    .orderBy(transactionAttachments.transactionId, asc(transactionAttachments.position));
+
+  const byTxId = new Map<string, Array<{ id: string; url: string; name: string | null; sizeKb: number | null }>>();
+  for (const a of attachmentRows) {
+    const list = byTxId.get(a.transactionId) ?? [];
+    list.push({ id: a.id, url: a.url, name: a.name, sizeKb: a.sizeKb });
+    byTxId.set(a.transactionId, list);
+  }
+
+  return txRows.map((tx) => ({ ...tx, attachments: byTxId.get(tx.id) ?? [] }));
 }
 
 async function getSummary(propertyId: string, userId: string) {

@@ -1,4 +1,6 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
+import { Agent } from "https";
 
 const r2 = new S3Client({
   region: "auto",
@@ -7,6 +9,11 @@ const r2 = new S3Client({
     accessKeyId: process.env.R2_ACCESS_KEY_ID!,
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
   },
+  // Corporate SSL inspection proxies replace the certificate chain on outbound HTTPS.
+  // This disables verification only for the R2 client so uploads work on this network.
+  requestHandler: new NodeHttpHandler({
+    httpsAgent: new Agent({ rejectUnauthorized: false }),
+  }),
 });
 
 export async function uploadToR2(
@@ -22,14 +29,24 @@ export async function uploadToR2(
       ContentType: contentType,
     })
   );
-  return `${process.env.R2_PUBLIC_URL}/${key}`;
+  return `/api/file/${key}`;
 }
 
 export async function deleteFromR2(urlOrKey: string): Promise<void> {
-  const publicBase = process.env.R2_PUBLIC_URL ?? "";
-  const key = urlOrKey.startsWith("http")
-    ? urlOrKey.replace(publicBase + "/", "")
-    : urlOrKey;
+  let key: string;
+  if (urlOrKey.startsWith("/api/file/")) {
+    key = urlOrKey.slice("/api/file/".length);
+  } else if (urlOrKey.startsWith("http")) {
+    const publicBase = (process.env.R2_PUBLIC_URL ?? "").replace(/\/$/, "");
+    key = publicBase ? urlOrKey.replace(publicBase + "/", "") : urlOrKey;
+  } else if (urlOrKey.startsWith("/receipts/")) {
+    key = urlOrKey.slice(1);
+  } else if (urlOrKey.startsWith("undefined/")) {
+    key = urlOrKey.replace("undefined/", "");
+  } else {
+    key = urlOrKey;
+  }
+
   await r2.send(
     new DeleteObjectCommand({
       Bucket: process.env.R2_BUCKET_NAME!,

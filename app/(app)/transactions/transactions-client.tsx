@@ -48,12 +48,10 @@ export type TransactionRow = {
   propertyId: string | null;
   unitId: string | null;
   notes: string | null;
-  attachmentUrl: string | null;
-  attachmentName: string | null;
-  attachmentSizeKb: number | null;
   needsReview: boolean | null;
   propertyName: string | null;
   unitName: string | null;
+  attachments: Array<{ id: string; url: string; name: string | null; sizeKb: number | null }>;
 };
 
 type Property = { id: string; name: string };
@@ -177,9 +175,7 @@ export function TransactionsTableSection({
       propertyId: tx.propertyId,
       unitId: tx.unitId,
       notes: tx.notes,
-      attachmentUrl: tx.attachmentUrl,
-      attachmentName: tx.attachmentName ?? null,
-      attachmentSizeKb: tx.attachmentSizeKb ?? null,
+      attachments: tx.attachments,
     });
     setSheetOpen(true);
   }
@@ -376,13 +372,13 @@ export function TransactionsTableSection({
                     <TableCell
                       className="text-center"
                       onClick={(e) => {
-                        if (tx.attachmentUrl) {
+                        if (tx.attachments.length > 0) {
                           e.stopPropagation();
                           setViewerTx(tx);
                         }
                       }}
                     >
-                      {tx.attachmentUrl ? (
+                      {tx.attachments.length > 0 ? (
                         <Paperclip className="size-3.5 text-primary mx-auto cursor-pointer hover:opacity-70" />
                       ) : null}
                     </TableCell>
@@ -402,13 +398,13 @@ export function TransactionsTableSection({
                           <MoreHorizontal className="size-4" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onSelect={() => handleEdit(tx)}>
+                          <DropdownMenuItem onClick={() => handleEdit(tx)}>
                             <Pencil className="size-3.5 mr-2" />
                             Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             variant="destructive"
-                            onSelect={() => openDelete(tx.id)}
+                            onClick={() => openDelete(tx.id)}
                           >
                             <Trash2 className="size-3.5 mr-2" />
                             Delete
@@ -474,14 +470,12 @@ export function TransactionsTableSection({
         />
       )}
 
-      {viewerTx?.attachmentUrl && (
+      {viewerTx && viewerTx.attachments.length > 0 && (
         <AttachmentViewer
           open={!!viewerTx}
           onOpenChange={(o) => { if (!o) setViewerTx(null); }}
           transactionId={viewerTx.id}
-          url={viewerTx.attachmentUrl}
-          filename={viewerTx.attachmentName}
-          sizeKb={viewerTx.attachmentSizeKb}
+          attachments={viewerTx.attachments}
           onDeleted={() => setViewerTx(null)}
         />
       )}

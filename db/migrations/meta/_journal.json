@@ -8,6 +8,13 @@
       "when": 1779674071575,
       "tag": "0000_open_leech",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1748178000000,
+      "tag": "0001_transaction_attachments",
+      "breakpoints": true
     }
   ]
 }
