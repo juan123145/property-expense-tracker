@@ -125,7 +125,7 @@ export default async function PropertyDetailPage({ params }: PageProps) {
     <div className="space-y-6">
       {/* Hero photo */}
       {property.imageUrl && (
-        <div className="w-full aspect-video sm:aspect-[3/1] overflow-hidden bg-muted">
+        <div className="w-full h-44 sm:h-56 overflow-hidden bg-muted">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={property.imageUrl} alt={property.name} className="w-full h-full object-cover" />
         </div>

@@ -6,6 +6,7 @@ import { properties, units, transactions } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { deleteFromR2 } from "@/lib/r2";
 
 type UnitEdit = { id?: string; name: string; deleted: boolean };
 
@@ -62,6 +63,19 @@ export async function updateProperty(_prev: unknown, formData: FormData) {
   if (!name?.trim()) return { error: "Property name is required." };
 
   const imageUrlField = formData.get("imageUrl") as string | null;
+
+  // If the photo changed, delete the old one from R2 before updating
+  if (imageUrlField !== null) {
+    const [current] = await db
+      .select({ imageUrl: properties.imageUrl })
+      .from(properties)
+      .where(and(eq(properties.id, id), eq(properties.userId, user.id)))
+      .limit(1);
+    const oldUrl = current?.imageUrl;
+    if (oldUrl && oldUrl !== imageUrlField) {
+      try { await deleteFromR2(oldUrl); } catch { /* non-fatal */ }
+    }
+  }
 
   await db
     .update(properties)
