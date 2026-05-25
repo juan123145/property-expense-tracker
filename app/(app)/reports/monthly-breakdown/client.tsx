@@ -107,8 +107,8 @@ export function MonthlyBreakdownClient({
             onValueChange={(v) => router.push(buildUrl({ property: (v ?? "") === "all" ? "" : (v ?? ""), unit: "" }))}
           >
             <SelectTrigger className="!h-9 text-sm w-[180px] bg-background">
-              <SelectValue placeholder="All Properties">
-                {currentPropertyId ? (userProperties.find((p) => p.id === currentPropertyId)?.name ?? "") : undefined}
+              <SelectValue>
+                {currentPropertyId ? (userProperties.find((p) => p.id === currentPropertyId)?.name ?? "All Properties") : "All Properties"}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -123,8 +123,8 @@ export function MonthlyBreakdownClient({
             onValueChange={(v) => router.push(buildUrl({ unit: (v ?? "") === "all" ? "" : (v ?? "") }))}
           >
             <SelectTrigger className="!h-9 text-sm w-[160px] bg-background">
-              <SelectValue placeholder="All Units">
-                {currentUnitId ? (allUnits.find((u) => u.id === currentUnitId)?.name ?? "") : undefined}
+              <SelectValue>
+                {currentUnitId ? (allUnits.find((u) => u.id === currentUnitId)?.name ?? "All Units") : "All Units"}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>

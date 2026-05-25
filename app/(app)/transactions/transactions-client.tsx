@@ -544,10 +544,10 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
             {properties.length > 0 && (
               <Select value={filters.propertyFilter || "all"} onValueChange={(v) => patchFilters({ propertyFilter: (v ?? "") === "all" ? "" : (v ?? "") })}>
                 <SelectTrigger className="!h-9 text-sm w-[180px] bg-background">
-                  <SelectValue placeholder="All Properties">
+                  <SelectValue>
                     {filters.propertyFilter
-                      ? (properties.find((p) => p.id === filters.propertyFilter)?.name ?? "")
-                      : undefined}
+                      ? (properties.find((p) => p.id === filters.propertyFilter)?.name ?? "All Properties")
+                      : "All Properties"}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent align="start">
@@ -567,12 +567,12 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
             />
             <Select value={filters.categoryFilter || "all"} onValueChange={(v) => patchFilters({ categoryFilter: (v ?? "") === "all" ? "" : (v ?? "") })}>
               <SelectTrigger className="!h-9 text-sm w-[160px] bg-background">
-                <SelectValue placeholder="All categories">
-                  {filters.categoryFilter || undefined}
+                <SelectValue>
+                  {filters.categoryFilter || "All Categories"}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent align="start">
-                <SelectItem value="all">All categories</SelectItem>
+                <SelectItem value="all">All Categories</SelectItem>
                 {CATEGORIES.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
