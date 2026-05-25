@@ -143,28 +143,85 @@ function suggestCategory(payee: string | null): string | null {
 
 // ─── PDF text extraction ──────────────────────────────────────────────────────
 
-export async function ocrPdfBuffer(buffer: Buffer): Promise<OcrResult> {
+type VisionFilesResponse = {
+  responses: Array<{
+    responses?: Array<{
+      fullTextAnnotation?: { text: string; pages?: Array<{ confidence?: number }> };
+      error?: { message: string };
+    }>;
+    error?: { message: string };
+  }>;
+};
+
+export async function ocrPdfBuffer(buffer: Buffer, signal?: AbortSignal): Promise<OcrResult> {
+  const empty: OcrResult = { date: null, amount: null, payee: null, category: null, confidence: 0, rawText: "" };
+
+  // Step 1: try native text extraction (works for text-based PDFs)
   let rawText = "";
   try {
     const data = await pdfParse(buffer);
     rawText = data.text ?? "";
   } catch {
-    return { date: null, amount: null, payee: null, category: null, confidence: 0, rawText: "" };
+    // pdf-parse failed — fall through to Vision
   }
 
-  if (!rawText.trim()) {
-    return { date: null, amount: null, payee: null, category: null, confidence: 0, rawText: "" };
+  if (rawText.trim()) {
+    const payee = parsePayee(rawText);
+    return {
+      date: parseDate(rawText),
+      amount: parseAmount(rawText),
+      payee,
+      category: suggestCategory(payee),
+      confidence: 0.85,
+      rawText,
+    };
   }
 
-  const payee = parsePayee(rawText);
-  return {
-    date: parseDate(rawText),
-    amount: parseAmount(rawText),
-    payee,
-    category: suggestCategory(payee),
-    confidence: 0.85, // direct text extraction is highly reliable
-    rawText,
-  };
+  // Step 2: scanned PDF — send to Google Vision files:annotate
+  const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
+  if (!apiKey) return empty;
+
+  try {
+    const base64 = buffer.toString("base64");
+    const res = await fetch(
+      `https://vision.googleapis.com/v1/files:annotate?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requests: [
+            {
+              inputConfig: { content: base64, mimeType: "application/pdf" },
+              features: [{ type: "DOCUMENT_TEXT_DETECTION" }],
+              pages: [1, 2], // first two pages is enough for receipts/invoices
+            },
+          ],
+        }),
+        signal,
+      }
+    );
+
+    if (!res.ok) return empty;
+    const data: VisionFilesResponse = await res.json();
+    const pageResponses = data.responses?.[0]?.responses ?? [];
+    rawText = pageResponses
+      .map((p) => p.fullTextAnnotation?.text ?? "")
+      .join("\n");
+
+    const confidence = pageResponses[0]?.fullTextAnnotation?.pages?.[0]?.confidence ?? 0.5;
+    if (!rawText.trim()) return empty;
+    const payee = parsePayee(rawText);
+    return {
+      date: parseDate(rawText),
+      amount: parseAmount(rawText),
+      payee,
+      category: suggestCategory(payee),
+      confidence,
+      rawText,
+    };
+  } catch {
+    return empty;
+  }
 }
 
 // ─── Google Vision ────────────────────────────────────────────────────────────

@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { CategorySelect } from "./category-select";
 import { ReceiptUploadZone } from "./receipt-upload-zone";
+import { DatePickerInput } from "@/components/ui/date-picker";
 
 export type TransactionFormData = {
   id: string;
@@ -244,17 +245,17 @@ export function AddTransactionSheet({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="date">
+              <Label>
                 Date *
-                {ocrScanning && <Loader2 className="inline ml-1 size-3 animate-spin text-muted-foreground" />}
               </Label>
-              <Input
-                id="date"
-                name="date"
-                type="date"
-                required
+              {/* hidden input carries value for FormData */}
+              <input type="hidden" name="date" value={date} />
+              <DatePickerInput
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={setDate}
+                placeholder="Pick a date"
+                scanning={ocrScanning}
+                disabled={isBusy}
               />
             </div>
             <div className="space-y-1.5">
