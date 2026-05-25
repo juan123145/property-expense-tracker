@@ -12,7 +12,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/properties", label: "Properties", icon: Building2 },
   { href: "/transactions", label: "Transactions", icon: Receipt, hasBadge: true },
-  { href: "/reports", label: "Reports", icon: BarChart2, comingSoon: true },
+  { href: "/reports", label: "Reports", icon: BarChart2 },
   { href: "/settings", label: "Settings", icon: Settings, comingSoon: true },
 ];
 
