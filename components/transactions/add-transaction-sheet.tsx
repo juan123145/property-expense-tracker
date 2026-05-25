@@ -2,7 +2,9 @@
 
 import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 import { createTransaction, updateTransaction } from "@/app/actions/transactions";
+import type { OcrResult } from "@/lib/ocr";
 import {
   Sheet,
   SheetContent,
@@ -61,49 +63,98 @@ export function AddTransactionSheet({
   const [state, formAction, pending] = useActionState(action, null);
   const formRef = useRef<HTMLFormElement>(null);
 
+  // Form field state (all controlled so OCR can pre-fill)
+  const [date, setDate] = useState(transaction?.date ?? "");
   const [txType, setTxType] = useState(transaction?.type ?? "expense");
   const [propertyId, setPropertyId] = useState(transaction?.propertyId ?? "none");
   const [unitId, setUnitId] = useState(transaction?.unitId ?? "none");
   const [amount, setAmount] = useState(transaction?.amount ?? "");
+  const [payee, setPayee] = useState(transaction?.payee ?? "");
   const [category, setCategory] = useState(transaction?.category ?? "");
   const [subcategory, setSubcategory] = useState(transaction?.subcategory ?? "");
 
   // Attachment state
   const [pendingFile, setPendingFile] = useState<File | null>(null);
-  // "keep" = use existing, "clear" = remove existing, "new" = pendingFile replaces
   const [attachmentAction, setAttachmentAction] = useState<"keep" | "clear" | "new">("keep");
   const [uploading, setUploading] = useState(false);
+
+  // OCR state
+  const [ocrScanning, setOcrScanning] = useState(false);
+  const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
 
   const filteredUnits = allUnits.filter(
     (u) => propertyId !== "none" && u.propertyId !== null && u.propertyId === propertyId
   );
 
+  // Reset everything when sheet opens/closes or switches between transactions
   useEffect(() => {
     if (open) {
+      setDate(transaction?.date ?? "");
       setTxType(transaction?.type ?? "expense");
       setPropertyId(transaction?.propertyId ?? "none");
       setUnitId(transaction?.unitId ?? "none");
       setAmount(transaction?.amount ?? "");
+      setPayee(transaction?.payee ?? "");
       setCategory(transaction?.category ?? "");
       setSubcategory(transaction?.subcategory ?? "");
       setPendingFile(null);
       setAttachmentAction("keep");
+      setOcrResult(null);
+      setOcrScanning(false);
     }
   }, [open, transaction]);
 
+  // Run OCR whenever a new image file is selected
+  useEffect(() => {
+    if (!pendingFile || !pendingFile.type.startsWith("image/")) {
+      setOcrResult(null);
+      setOcrScanning(false);
+      return;
+    }
+
+    let cancelled = false;
+    setOcrScanning(true);
+    setOcrResult(null);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+
+    const fd = new FormData();
+    fd.set("file", pendingFile);
+
+    fetch("/api/ocr", { method: "POST", body: fd, signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((result: OcrResult | null) => {
+        if (cancelled || !result) return;
+        setOcrResult(result);
+        // Only pre-fill fields that the user hasn't touched yet
+        if (result.date && !date) setDate(result.date);
+        if (result.amount && !amount) setAmount(result.amount);
+        if (result.payee && !payee) setPayee(result.payee);
+        if (result.category && !category) {
+          setCategory(result.category);
+          setSubcategory("");
+        }
+      })
+      .catch(() => {/* non-fatal */})
+      .finally(() => {
+        clearTimeout(timeout);
+        if (!cancelled) setOcrScanning(false);
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearTimeout(timeout);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingFile]);
+
+  // Handle server action response
   useEffect(() => {
     if (state?.success) {
       toast.success(isEdit ? "Transaction updated." : "Transaction added.");
       onOpenChange(false);
-      formRef.current?.reset();
-      setTxType("expense");
-      setPropertyId("none");
-      setUnitId("none");
-      setAmount("");
-      setCategory("");
-      setSubcategory("");
-      setPendingFile(null);
-      setAttachmentAction("keep");
     }
     if (state?.error) {
       toast.error(state.error);
@@ -114,7 +165,6 @@ export function AddTransactionSheet({
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
 
-    // Handle attachment
     if (attachmentAction === "new" && pendingFile) {
       setUploading(true);
       try {
@@ -141,20 +191,25 @@ export function AddTransactionSheet({
       fd.set("attachmentUrl", "");
       fd.set("attachmentName", "");
       fd.set("attachmentSizeKb", "");
-    } else if (attachmentAction === "keep") {
-      // Pass existing values so the server action preserves them
+    } else {
       fd.set("attachmentUrl", transaction?.attachmentUrl ?? "");
       fd.set("attachmentName", transaction?.attachmentName ?? "");
       fd.set("attachmentSizeKb", transaction?.attachmentSizeKb != null ? String(transaction.attachmentSizeKb) : "");
     }
 
-    // Pass existing URL so server can delete from R2 if replaced/cleared
     fd.set("existingAttachmentUrl", transaction?.attachmentUrl ?? "");
+
+    // Pass OCR confidence and needsReview flag
+    if (ocrResult) {
+      fd.set("ocrConfidence", String(ocrResult.confidence));
+      fd.set("needsReview", ocrResult.confidence < 0.7 ? "true" : "false");
+    }
 
     startTransition(() => formAction(fd));
   }
 
   const isBusy = pending || uploading;
+  const hasOcrFields = ocrResult && (ocrResult.date || ocrResult.amount || ocrResult.payee);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -165,19 +220,46 @@ export function AddTransactionSheet({
         <form ref={formRef} onSubmit={handleSubmit} className="mt-6 space-y-4 px-4 pb-6">
           {isEdit && <input type="hidden" name="id" value={transaction.id} />}
 
+          {/* OCR banner */}
+          {ocrScanning && (
+            <div className="flex items-center gap-2 rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-700">
+              <Loader2 className="size-3.5 animate-spin shrink-0" />
+              Scanning receipt — fields will be filled automatically…
+            </div>
+          )}
+          {!ocrScanning && hasOcrFields && ocrResult.confidence >= 0.7 && (
+            <div className="flex items-center gap-2 rounded-md bg-green-50 border border-green-200 px-3 py-2 text-xs text-green-700">
+              <CheckCircle2 className="size-3.5 shrink-0" />
+              Auto-filled from receipt — please confirm the values below
+            </div>
+          )}
+          {!ocrScanning && hasOcrFields && ocrResult.confidence < 0.7 && (
+            <div className="flex items-center gap-2 rounded-md bg-yellow-50 border border-yellow-200 px-3 py-2 text-xs text-yellow-700">
+              <AlertTriangle className="size-3.5 shrink-0" />
+              Low confidence scan — please review and fill in manually
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="date">Date *</Label>
+              <Label htmlFor="date">
+                Date *
+                {ocrScanning && <Loader2 className="inline ml-1 size-3 animate-spin text-muted-foreground" />}
+              </Label>
               <Input
                 id="date"
                 name="date"
                 type="date"
                 required
-                defaultValue={transaction?.date}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="amount">Amount *</Label>
+              <Label htmlFor="amount">
+                Amount *
+                {ocrScanning && <Loader2 className="inline ml-1 size-3 animate-spin text-muted-foreground" />}
+              </Label>
               <Input
                 id="amount"
                 name="amount"
@@ -211,26 +293,38 @@ export function AddTransactionSheet({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="payee">Payee</Label>
+              <Label htmlFor="payee">
+                Payee
+                {ocrScanning && <Loader2 className="inline ml-1 size-3 animate-spin text-muted-foreground" />}
+              </Label>
               <Input
                 id="payee"
                 name="payee"
-                defaultValue={transaction?.payee ?? ""}
+                value={payee}
+                onChange={(e) => setPayee(e.target.value)}
                 placeholder="e.g. Home Depot"
               />
             </div>
           </div>
 
-          <CategorySelect
-            key={transaction?.id ?? "new"}
-            category={category}
-            subcategory={subcategory}
-            onCategoryChange={(cat) => {
-              setCategory(cat);
-              setSubcategory("");
-            }}
-            onSubcategoryChange={setSubcategory}
-          />
+          <div>
+            {ocrScanning && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1.5">
+                <Loader2 className="size-3 animate-spin" />
+                Detecting category…
+              </div>
+            )}
+            <CategorySelect
+              key={transaction?.id ?? "new"}
+              category={category}
+              subcategory={subcategory}
+              onCategoryChange={(cat) => {
+                setCategory(cat);
+                setSubcategory("");
+              }}
+              onSubcategoryChange={setSubcategory}
+            />
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -307,6 +401,7 @@ export function AddTransactionSheet({
             <Label>Receipt</Label>
             <ReceiptUploadZone
               file={pendingFile}
+              scanning={ocrScanning}
               onFileChange={(f) => {
                 setPendingFile(f);
                 setAttachmentAction(f ? "new" : "keep");
@@ -316,14 +411,23 @@ export function AddTransactionSheet({
               existingSizeKb={transaction?.attachmentSizeKb}
               onClear={() => {
                 setPendingFile(null);
+                setOcrResult(null);
                 setAttachmentAction(isEdit && transaction?.attachmentUrl ? "clear" : "keep");
               }}
             />
           </div>
 
           <div className="flex gap-2 pt-2">
-            <Button type="submit" disabled={isBusy} className="flex-1">
-              {uploading ? "Uploading…" : pending ? "Saving…" : isEdit ? "Save Changes" : "Add Transaction"}
+            <Button type="submit" disabled={isBusy || ocrScanning} className="flex-1">
+              {uploading
+                ? "Uploading…"
+                : pending
+                ? "Saving…"
+                : ocrScanning
+                ? "Scanning…"
+                : isEdit
+                ? "Save Changes"
+                : "Add Transaction"}
             </Button>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

@@ -30,6 +30,7 @@ type Props = {
   existingName?: string | null;
   existingSizeKb?: number | null;
   onClear?: () => void;
+  scanning?: boolean;
 };
 
 export function ReceiptUploadZone({
@@ -39,6 +40,7 @@ export function ReceiptUploadZone({
   existingName,
   existingSizeKb,
   onClear,
+  scanning = false,
 }: Props) {
   const [compressing, setCompressing] = useState(false);
   const [sizeInfo, setSizeInfo] = useState<SizeInfo | null>(null);
@@ -148,7 +150,10 @@ export function ReceiptUploadZone({
             {compressing && (
               <p className="text-xs text-muted-foreground">Compressing…</p>
             )}
-            {!compressing && sizeInfo && sizeInfo.compressed < sizeInfo.original && (
+            {!compressing && scanning && (
+              <p className="text-xs text-blue-600">Scanning receipt…</p>
+            )}
+            {!compressing && !scanning && sizeInfo && sizeInfo.compressed < sizeInfo.original && (
               <p className="text-xs text-muted-foreground">
                 {formatBytes(sizeInfo.original)} → {formatBytes(sizeInfo.compressed)}{" "}
                 <span className="text-green-600">
@@ -156,7 +161,7 @@ export function ReceiptUploadZone({
                 </span>
               </p>
             )}
-            {!compressing && sizeInfo && sizeInfo.compressed >= sizeInfo.original && (
+            {!compressing && !scanning && sizeInfo && sizeInfo.compressed >= sizeInfo.original && (
               <p className="text-xs text-muted-foreground">
                 {formatBytes(sizeInfo.compressed)} — no compression needed
               </p>

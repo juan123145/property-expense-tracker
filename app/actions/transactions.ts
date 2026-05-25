@@ -34,6 +34,9 @@ export async function createTransaction(_prev: unknown, formData: FormData) {
   if (!type) return { error: "Type is required." };
 
   const { attachmentUrl, attachmentName, attachmentSizeKb } = parseAttachment(formData);
+  const ocrConfidenceRaw = formData.get("ocrConfidence") as string | null;
+  const ocrConfidence = ocrConfidenceRaw ? parseFloat(ocrConfidenceRaw) : null;
+  const needsReview = formData.get("needsReview") === "true";
 
   await db.insert(transactions).values({
     userId: user.id,
@@ -49,6 +52,8 @@ export async function createTransaction(_prev: unknown, formData: FormData) {
     attachmentUrl,
     attachmentName,
     attachmentSizeKb,
+    ocrConfidence: ocrConfidence !== null ? String(ocrConfidence) : null,
+    needsReview,
   });
 
   revalidatePath("/transactions");
@@ -72,6 +77,9 @@ export async function updateTransaction(_prev: unknown, formData: FormData) {
 
   const { attachmentUrl, attachmentName, attachmentSizeKb } = parseAttachment(formData);
   const existingAttachmentUrl = (formData.get("existingAttachmentUrl") as string) || null;
+  const ocrConfidenceRaw = formData.get("ocrConfidence") as string | null;
+  const ocrConfidence = ocrConfidenceRaw ? parseFloat(ocrConfidenceRaw) : null;
+  const needsReview = formData.get("needsReview") === "true";
 
   // Delete old R2 file if attachment changed or cleared
   if (existingAttachmentUrl && existingAttachmentUrl !== attachmentUrl) {
@@ -97,6 +105,8 @@ export async function updateTransaction(_prev: unknown, formData: FormData) {
       attachmentUrl,
       attachmentName,
       attachmentSizeKb,
+      ocrConfidence: ocrConfidence !== null ? String(ocrConfidence) : null,
+      needsReview,
       updatedAt: new Date(),
     })
     .where(and(eq(transactions.id, id), eq(transactions.userId, user.id)));
