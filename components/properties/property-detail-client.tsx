@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { AddPropertySheet } from "@/components/properties/add-property-sheet";
-import { AddUnitSheet } from "@/components/properties/add-unit-sheet";
 import { ArchivePropertyButton } from "@/components/properties/archive-property-button";
 
 type Property = {
@@ -17,6 +16,7 @@ type Property = {
   type: string | null;
   notes: string | null;
   isArchived: boolean | null;
+  imageUrl?: string | null;
 };
 
 type Unit = { id: string; name: string };
@@ -28,7 +28,6 @@ type Props = {
 
 export function PropertyDetailClient({ property, units }: Props) {
   const [editOpen, setEditOpen] = useState(false);
-  const [addUnitOpen, setAddUnitOpen] = useState(false);
 
   return (
     <>
@@ -36,10 +35,6 @@ export function PropertyDetailClient({ property, units }: Props) {
         <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
           <Pencil className="size-4 mr-2" />
           Edit Property
-        </Button>
-        <Button size="sm" onClick={() => setAddUnitOpen(true)}>
-          <Plus className="size-4 mr-2" />
-          Add Unit
         </Button>
         <ArchivePropertyButton propertyId={property.id} isArchived={property.isArchived ?? false} />
       </div>
@@ -50,7 +45,6 @@ export function PropertyDetailClient({ property, units }: Props) {
         property={property}
         existingUnits={units}
       />
-      <AddUnitSheet open={addUnitOpen} onOpenChange={setAddUnitOpen} propertyId={property.id} />
     </>
   );
 }

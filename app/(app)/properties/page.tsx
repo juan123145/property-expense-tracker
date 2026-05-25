@@ -14,6 +14,7 @@ async function getPropertiesWithStats(userId: string, includeArchived = false) {
       state: properties.state,
       type: properties.type,
       isArchived: properties.isArchived,
+      imageUrl: properties.imageUrl,
       createdAt: properties.createdAt,
     })
     .from(properties)

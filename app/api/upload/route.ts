@@ -44,9 +44,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "File exceeds 10 MB limit" }, { status: 400 });
   }
 
+  const folderParam = (formData.get("folder") as string | null) ?? "";
+  const folder = folderParam === "properties" ? "properties" : "receipts";
+
   const timestamp = Date.now();
   const safeName = sanitizeFilename(file.name);
-  const key = `receipts/${session.user.id}/${timestamp}-${safeName}`;
+  const key = `${folder}/${session.user.id}/${timestamp}-${safeName}`;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let buffer: Uint8Array = new Uint8Array((await file.arrayBuffer()) as any);

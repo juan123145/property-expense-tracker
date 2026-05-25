@@ -27,7 +27,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<Params
   const { path } = await params;
   const key = path.join("/");
 
-  if (!key.startsWith(`receipts/${session.user.id}/`)) {
+  const userId = session.user.id;
+  const allowed = key.startsWith(`receipts/${userId}/`) || key.startsWith(`properties/${userId}/`);
+  if (!allowed) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 

@@ -28,16 +28,24 @@ export async function createProperty(_prev: unknown, formData: FormData) {
       zip: (formData.get("zip") as string) || null,
       type: (formData.get("type") as string) || null,
       notes: (formData.get("notes") as string) || null,
+      imageUrl: (formData.get("imageUrl") as string) || null,
     })
     .returning();
 
-  if (numberOfUnits > 0) {
-    await db.insert(units).values(
-      Array.from({ length: numberOfUnits }, (_, i) => ({
-        propertyId: property.id,
-        name: `Unit ${i + 1}`,
-      }))
-    );
+  // Accept either a unitsJson array (new flow) or numberOfUnits fallback
+  const unitsRaw = formData.get("unitsJson") as string | null;
+  let unitNames: string[] = [];
+  if (unitsRaw) {
+    try {
+      const parsed = JSON.parse(unitsRaw) as Array<{ name: string }>;
+      unitNames = parsed.map((u) => u.name.trim()).filter(Boolean);
+    } catch { /* ignore */ }
+  } else if (numberOfUnits > 0) {
+    unitNames = Array.from({ length: numberOfUnits }, (_, i) => `Unit ${i + 1}`);
+  }
+
+  if (unitNames.length > 0) {
+    await db.insert(units).values(unitNames.map((n) => ({ propertyId: property.id, name: n })));
   }
 
   revalidatePath("/properties");
@@ -53,6 +61,8 @@ export async function updateProperty(_prev: unknown, formData: FormData) {
   const name = formData.get("name") as string;
   if (!name?.trim()) return { error: "Property name is required." };
 
+  const imageUrlField = formData.get("imageUrl") as string | null;
+
   await db
     .update(properties)
     .set({
@@ -63,6 +73,7 @@ export async function updateProperty(_prev: unknown, formData: FormData) {
       zip: (formData.get("zip") as string) || null,
       type: (formData.get("type") as string) || null,
       notes: (formData.get("notes") as string) || null,
+      ...(imageUrlField !== null ? { imageUrl: imageUrlField || null } : {}),
     })
     .where(and(eq(properties.id, id), eq(properties.userId, user.id)));
 

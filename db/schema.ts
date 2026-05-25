@@ -20,6 +20,7 @@ export const properties = pgTable("properties", {
   type: text("type"),
   isArchived: boolean("is_archived").default(false),
   notes: text("notes"),
+  imageUrl: text("image_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 

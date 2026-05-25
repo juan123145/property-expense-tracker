@@ -122,7 +122,16 @@ export default async function PropertyDetailPage({ params }: PageProps) {
   }));
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className="space-y-6">
+      {/* Hero photo */}
+      {property.imageUrl && (
+        <div className="w-full aspect-video sm:aspect-[3/1] overflow-hidden bg-muted">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={property.imageUrl} alt={property.name} className="w-full h-full object-cover" />
+        </div>
+      )}
+
+      <div className="p-4 md:p-6 space-y-6">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <Link href="/properties" className="hover:text-foreground transition-colors">Properties</Link>
@@ -133,7 +142,7 @@ export default async function PropertyDetailPage({ params }: PageProps) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl font-bold">{property.name}</h1>
             {property.type && <Badge variant="secondary">{property.type}</Badge>}
             {property.isArchived && <Badge variant="outline">Archived</Badge>}
@@ -196,6 +205,7 @@ export default async function PropertyDetailPage({ params }: PageProps) {
           showAddButton={false}
         />
       </div>
+    </div>
     </div>
   );
 }
