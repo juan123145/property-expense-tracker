@@ -67,15 +67,17 @@ async function getPropertyTotals(userId: string) {
 
   if (props.length === 0) return [];
 
+  const periodExpr = sql<string>`case when ${transactions.date} >= ${sql.raw(`'${ms}'`)}::date then 'month' else 'year' end`;
+
   const expenseRows = await db
     .select({
       propertyId: transactions.propertyId,
-      period: sql<string>`case when ${transactions.date} >= ${ms}::date then 'month' else 'year' end`,
+      period: periodExpr,
       total: sql<string>`sum(${transactions.amount})`,
     })
     .from(transactions)
     .where(and(eq(transactions.userId, userId), eq(transactions.type, "expense"), eq(transactions.isDeleted, false), sql`${transactions.date} >= ${ys}::date`))
-    .groupBy(transactions.propertyId, sql`case when ${transactions.date} >= ${ms}::date then 'month' else 'year' end`);
+    .groupBy(transactions.propertyId, periodExpr);
 
   const byProp = new Map<string, { month: number; year: number }>();
   for (const row of expenseRows) {
