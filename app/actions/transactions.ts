@@ -3,9 +3,10 @@
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { transactions, transactionAttachments } from "@/db/schema";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, count } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { deleteFromR2 } from "@/lib/r2";
+import { shouldFlagForReview } from "@/lib/flagging";
 
 function parseOptionalUuid(value: string | null | undefined): string | null {
   const v = (value ?? "").trim();
@@ -29,21 +30,28 @@ export async function createTransaction(_prev: unknown, formData: FormData) {
   const amountRaw = formData.get("amount") as string;
   const type = formData.get("type") as string;
 
+  const payeeRaw = (formData.get("payee") as string)?.trim();
   if (!date) return { error: "Date is required." };
   if (!amountRaw || isNaN(parseFloat(amountRaw))) return { error: "Amount is required." };
   if (!type) return { error: "Type is required." };
+  if (!payeeRaw) return { error: "Payee is required." };
 
   const newAttachments = parseAttachmentsJson(formData);
   const ocrConfidenceRaw = formData.get("ocrConfidence") as string | null;
   const ocrConfidence = ocrConfidenceRaw ? parseFloat(ocrConfidenceRaw) : null;
-  const needsReview = formData.get("needsReview") === "true";
+  const needsReview = shouldFlagForReview({
+    category: (formData.get("category") as string) || null,
+    amount: parseFloat(amountRaw),
+    ocrConfidence,
+    hasAttachment: newAttachments.length > 0,
+  });
 
   const [tx] = await db.insert(transactions).values({
     userId: user.id,
     date,
     amount: parseFloat(amountRaw).toFixed(2),
     type,
-    payee: (formData.get("payee") as string) || null,
+    payee: payeeRaw || null,
     category: (formData.get("category") as string) || null,
     subcategory: (formData.get("subcategory") as string) || null,
     propertyId: parseOptionalUuid(formData.get("propertyId") as string),
@@ -79,10 +87,12 @@ export async function updateTransaction(_prev: unknown, formData: FormData) {
   const date = formData.get("date") as string;
   const amountRaw = formData.get("amount") as string;
   const type = formData.get("type") as string;
+  const payeeRaw = (formData.get("payee") as string)?.trim();
 
   if (!date) return { error: "Date is required." };
   if (!amountRaw || isNaN(parseFloat(amountRaw))) return { error: "Amount is required." };
   if (!type) return { error: "Type is required." };
+  if (!payeeRaw) return { error: "Payee is required." };
 
   const newAttachments = parseAttachmentsJson(formData);
   const deleteIds: string[] = (() => {
@@ -129,9 +139,20 @@ export async function updateTransaction(_prev: unknown, formData: FormData) {
     );
   }
 
+  const [countRow] = await db
+    .select({ value: count() })
+    .from(transactionAttachments)
+    .where(eq(transactionAttachments.transactionId, id));
+  const remainingAttachments = (countRow?.value ?? 0) + newAttachments.length;
+
   const ocrConfidenceRaw = formData.get("ocrConfidence") as string | null;
   const ocrConfidence = ocrConfidenceRaw ? parseFloat(ocrConfidenceRaw) : null;
-  const needsReview = formData.get("needsReview") === "true";
+  const needsReview = shouldFlagForReview({
+    category: (formData.get("category") as string) || null,
+    amount: parseFloat(amountRaw),
+    ocrConfidence,
+    hasAttachment: remainingAttachments > 0,
+  });
 
   await db
     .update(transactions)
@@ -139,7 +160,7 @@ export async function updateTransaction(_prev: unknown, formData: FormData) {
       date,
       amount: parseFloat(amountRaw).toFixed(2),
       type,
-      payee: (formData.get("payee") as string) || null,
+      payee: payeeRaw || null,
       category: (formData.get("category") as string) || null,
       subcategory: (formData.get("subcategory") as string) || null,
       propertyId: parseOptionalUuid(formData.get("propertyId") as string),
@@ -222,4 +243,28 @@ export async function deleteTransactionAttachment(attachmentId: string) {
 
   revalidatePath("/transactions");
   revalidatePath("/properties");
+}
+
+export async function markAsReviewed(id: string) {
+  const user = await requireAuth();
+
+  await db
+    .update(transactions)
+    .set({ needsReview: false, updatedAt: new Date() })
+    .where(and(eq(transactions.id, id), eq(transactions.userId, user.id)));
+
+  revalidatePath("/needs-review");
+  revalidatePath("/transactions");
+}
+
+export async function restoreTransaction(id: string) {
+  const user = await requireAuth();
+
+  await db
+    .update(transactions)
+    .set({ isDeleted: false, deletedAt: null, updatedAt: new Date() })
+    .where(and(eq(transactions.id, id), eq(transactions.userId, user.id)));
+
+  revalidatePath("/trash");
+  revalidatePath("/transactions");
 }

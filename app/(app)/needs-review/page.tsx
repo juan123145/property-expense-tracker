@@ -2,9 +2,9 @@ import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { transactions, properties, units, transactionAttachments } from "@/db/schema";
 import { eq, and, desc, asc } from "drizzle-orm";
-import { TransactionsClient } from "./transactions-client";
+import { NeedsReviewClient } from "./needs-review-client";
 
-async function getTransactions(userId: string) {
+async function getNeedsReviewTransactions(userId: string) {
   return db
     .select({
       id: transactions.id,
@@ -24,29 +24,14 @@ async function getTransactions(userId: string) {
     .from(transactions)
     .leftJoin(properties, eq(transactions.propertyId, properties.id))
     .leftJoin(units, eq(transactions.unitId, units.id))
-    .where(and(eq(transactions.userId, userId), eq(transactions.isDeleted, false)))
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        eq(transactions.needsReview, true),
+        eq(transactions.isDeleted, false)
+      )
+    )
     .orderBy(desc(transactions.date), desc(transactions.createdAt));
-}
-
-async function getTrashedTransactions(userId: string) {
-  return db
-    .select({
-      id: transactions.id,
-      date: transactions.date,
-      amount: transactions.amount,
-      type: transactions.type,
-      payee: transactions.payee,
-      category: transactions.category,
-      subcategory: transactions.subcategory,
-      deletedAt: transactions.deletedAt,
-      propertyName: properties.name,
-      unitName: units.name,
-    })
-    .from(transactions)
-    .leftJoin(properties, eq(transactions.propertyId, properties.id))
-    .leftJoin(units, eq(transactions.unitId, units.id))
-    .where(and(eq(transactions.userId, userId), eq(transactions.isDeleted, true)))
-    .orderBy(desc(transactions.deletedAt));
 }
 
 async function getAttachments(userId: string) {
@@ -60,7 +45,13 @@ async function getAttachments(userId: string) {
     })
     .from(transactionAttachments)
     .innerJoin(transactions, eq(transactionAttachments.transactionId, transactions.id))
-    .where(and(eq(transactions.userId, userId), eq(transactions.isDeleted, false)))
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        eq(transactions.needsReview, true),
+        eq(transactions.isDeleted, false)
+      )
+    )
     .orderBy(transactionAttachments.transactionId, asc(transactionAttachments.position));
 }
 
@@ -79,18 +70,20 @@ async function getAllUnits(userId: string) {
     .where(eq(properties.userId, userId));
 }
 
-export default async function TransactionsPage() {
+export default async function NeedsReviewPage() {
   const user = await requireAuth();
 
-  const [txRows, trashedRows, attachmentRows, propList, unitList] = await Promise.all([
-    getTransactions(user.id),
-    getTrashedTransactions(user.id),
+  const [txRows, attachmentRows, propList, unitList] = await Promise.all([
+    getNeedsReviewTransactions(user.id),
     getAttachments(user.id),
     getProperties(user.id),
     getAllUnits(user.id),
   ]);
 
-  const attachmentsByTxId = new Map<string, Array<{ id: string; url: string; name: string | null; sizeKb: number | null }>>();
+  const attachmentsByTxId = new Map<
+    string,
+    Array<{ id: string; url: string; name: string | null; sizeKb: number | null }>
+  >();
   for (const a of attachmentRows) {
     const list = attachmentsByTxId.get(a.transactionId) ?? [];
     list.push({ id: a.id, url: a.url, name: a.name, sizeKb: a.sizeKb });
@@ -103,9 +96,8 @@ export default async function TransactionsPage() {
   }));
 
   return (
-    <TransactionsClient
+    <NeedsReviewClient
       transactions={txList}
-      trashedTransactions={trashedRows}
       properties={propList}
       allUnits={unitList}
     />

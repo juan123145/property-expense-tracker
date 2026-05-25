@@ -398,12 +398,13 @@ export function AddTransactionSheet({
               {/* Payee */}
               <div className="space-y-1.5">
                 <Label htmlFor="payee" className="text-sm font-semibold">
-                  Payee
+                  Payee *
                   {ocrScanning && <Loader2 className="inline ml-1 size-3 animate-spin text-muted-foreground" />}
                 </Label>
                 <Input
                   id="payee"
                   name="payee"
+                  required
                   value={payee}
                   onChange={(e) => { setPayee(e.target.value); removeFromOcrFields("payee"); }}
                   placeholder="e.g. Home Depot"
@@ -443,7 +444,11 @@ export function AddTransactionSheet({
                     onValueChange={(v) => { setPropertyId(v ?? "none"); setUnitId("none"); }}
                   >
                     <SelectTrigger className="w-full h-11">
-                      <SelectValue placeholder="No property" />
+                      <SelectValue placeholder="No property">
+                        {propertyId !== "none"
+                          ? (properties.find((p) => p.id === propertyId)?.name ?? "")
+                          : undefined}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No property</SelectItem>
@@ -466,7 +471,11 @@ export function AddTransactionSheet({
                     >
                       <SelectValue
                         placeholder={propertyId === "none" ? "Select property first" : "No units"}
-                      />
+                      >
+                        {unitId !== "none"
+                          ? (filteredUnits.find((u) => u.id === unitId)?.name ?? "")
+                          : undefined}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No unit</SelectItem>

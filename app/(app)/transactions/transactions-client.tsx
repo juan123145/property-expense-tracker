@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useTransition } from "react";
 import {
   Plus, Paperclip, CheckCircle2, AlertTriangle, MoreHorizontal,
   Pencil, Trash2, Receipt, Search, X, SlidersHorizontal, Filter,
+  RotateCcw, AlertCircle, MapPin,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,6 +36,8 @@ import { AddTransactionSheet, type TransactionFormData } from "@/components/tran
 import { DeleteTransactionDialog, useDeleteDialog } from "@/components/transactions/delete-transaction-button";
 import { AttachmentViewer } from "@/components/transactions/attachment-viewer";
 import { getCategoryBadgeClass, CATEGORIES } from "@/lib/categories";
+import { markAsReviewed, restoreTransaction } from "@/app/actions/transactions";
+import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
 
@@ -54,14 +58,32 @@ export type TransactionRow = {
   attachments: Array<{ id: string; url: string; name: string | null; sizeKb: number | null }>;
 };
 
+type TrashedRow = {
+  id: string;
+  date: string;
+  amount: string;
+  type: string;
+  payee: string | null;
+  category: string | null;
+  subcategory: string | null;
+  deletedAt: Date | null;
+  propertyName: string | null;
+  unitName: string | null;
+};
+
 type Property = { id: string; name: string };
 type Unit = { id: string; propertyId: string | null; name: string };
 
 type Props = {
   transactions: TransactionRow[];
+  trashedTransactions: TrashedRow[];
   properties: Property[];
   allUnits: Unit[];
 };
+
+type Tab = "all" | "needs-review" | "trash";
+
+// ─── Formatters ──────────────────────────────────────────────────────────────
 
 function formatDate(dateStr: string) {
   const [y, m, d] = dateStr.split("-");
@@ -76,6 +98,34 @@ function formatAmount(amount: string, type: string) {
   });
   return type === "income" ? `+$${formatted}` : `-$${formatted}`;
 }
+
+function daysUntilDeletion(deletedAt: Date | null): number {
+  if (!deletedAt) return 30;
+  const ms = new Date(deletedAt).getTime() + 30 * 24 * 60 * 60 * 1000 - Date.now();
+  return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
+}
+
+// ─── Missing-field chips (used in Needs Review) ───────────────────────────────
+
+function MissingChip({ label, icon: Icon }: { label: string; icon: React.ElementType }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-destructive/10 text-destructive border border-destructive/20">
+      <Icon className="size-2.5 shrink-0" />
+      {label}
+    </span>
+  );
+}
+
+function MissingAmberChip({ label, icon: Icon }: { label: string; icon: React.ElementType }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800/40">
+      <Icon className="size-2.5 shrink-0" />
+      {label}
+    </span>
+  );
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
 
 export function TransactionsSkeleton() {
   return (
@@ -105,43 +155,42 @@ function TransactionCard({
       className="flex items-start gap-3 rounded-lg border bg-card px-4 py-3 active:bg-accent transition-colors cursor-pointer"
       onClick={() => onEdit(tx)}
     >
-      {/* Left: date + status dot */}
       <div className="flex flex-col items-center gap-1 shrink-0 pt-0.5">
-        <div
-          className={`size-2 rounded-full ${tx.needsReview ? "bg-yellow-400" : "bg-green-500"}`}
-        />
+        <div className={`size-2 rounded-full ${tx.needsReview ? "bg-yellow-400" : "bg-green-500"}`} />
         <span className="text-[10px] text-muted-foreground tabular-nums leading-none">
           {formatDate(tx.date)}
         </span>
       </div>
 
-      {/* Middle: payee + category + property */}
       <div className="flex-1 min-w-0 space-y-0.5">
         <p className="text-sm font-medium truncate">
           {tx.payee ?? <span className="text-muted-foreground italic">No payee</span>}
         </p>
         <div className="flex items-center gap-1.5 flex-wrap">
-          {tx.category && (
+          {tx.category ? (
             <Badge className={`text-[10px] px-1.5 py-0 ${getCategoryBadgeClass(tx.category)}`}>
               {tx.category}
             </Badge>
+          ) : (
+            <MissingChip label="No category" icon={AlertCircle} />
           )}
           {tx.subcategory && (
             <span className="text-[10px] text-muted-foreground">{tx.subcategory}</span>
           )}
         </div>
-        {tx.propertyName && (
-          <p className="text-[10px] text-muted-foreground truncate">{tx.propertyName}{tx.unitName ? ` · ${tx.unitName}` : ""}</p>
+        {tx.propertyName ? (
+          <p className="text-[10px] text-muted-foreground truncate">
+            {tx.propertyName}{tx.unitName ? ` · ${tx.unitName}` : ""}
+          </p>
+        ) : (
+          <div className="pt-0.5">
+            <MissingAmberChip label="No property" icon={MapPin} />
+          </div>
         )}
       </div>
 
-      {/* Right: amount + icons + menu */}
       <div className="flex flex-col items-end gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-        <span
-          className={`text-sm font-semibold tabular-nums ${
-            tx.type === "income" ? "text-green-600" : "text-red-600"
-          }`}
-        >
+        <span className={`text-sm font-semibold tabular-nums ${tx.type === "income" ? "text-green-600" : "text-red-600"}`}>
           {formatAmount(tx.amount, tx.type)}
         </span>
         <div className="flex items-center gap-2">
@@ -163,12 +212,10 @@ function TransactionCard({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => onEdit(tx)}>
-                <Pencil className="size-3.5 mr-2" />
-                Edit
+                <Pencil className="size-3.5 mr-2" />Edit
               </DropdownMenuItem>
               <DropdownMenuItem variant="destructive" onClick={() => onDelete(tx.id)}>
-                <Trash2 className="size-3.5 mr-2" />
-                Delete
+                <Trash2 className="size-3.5 mr-2" />Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -190,13 +237,7 @@ type FilterState = {
 };
 
 function FilterPanel({
-  state,
-  onChange,
-  onClear,
-  properties,
-  hasActive,
-  open,
-  onToggle,
+  state, onChange, onClear, properties, hasActive, open, onToggle,
 }: {
   state: FilterState;
   onChange: (patch: Partial<FilterState>) => void;
@@ -208,7 +249,6 @@ function FilterPanel({
 }) {
   return (
     <div className="space-y-2">
-      {/* Search + toggle row — always visible */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground pointer-events-none" />
@@ -227,299 +267,381 @@ function FilterPanel({
               : "border-input bg-background text-muted-foreground hover:text-foreground hover:bg-muted"
           }`}
         >
-          <Filter className="size-3.5" />
-          Filters
+          <Filter className="size-3.5" />Filters
           {hasActive && (
             <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] text-primary-foreground font-bold">
-              {[
-                state.typeFilter !== "all",
-                !!state.categoryFilter,
-                !!state.propertyFilter,
-                !!state.dateFrom,
-                !!state.dateTo,
-              ].filter(Boolean).length}
+              {[state.typeFilter !== "all", !!state.categoryFilter, !!state.propertyFilter, !!state.dateFrom, !!state.dateTo].filter(Boolean).length}
             </span>
           )}
         </button>
       </div>
-
-      {/* Expandable filter row */}
       {open && (
         <div className="flex flex-wrap gap-2 items-center">
           <div className="flex rounded-md border overflow-hidden h-9 text-xs shrink-0">
             {(["all", "income", "expense"] as const).map((t) => (
               <button
                 key={t}
-                className={`px-3 capitalize transition-colors ${
-                  state.typeFilter === t
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-background hover:bg-muted"
-                }`}
+                className={`px-3 capitalize transition-colors ${state.typeFilter === t ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
                 onClick={() => onChange({ typeFilter: t })}
               >
                 {t === "all" ? "All" : t}
               </button>
             ))}
           </div>
-
           <Select value={state.categoryFilter} onValueChange={(v) => onChange({ categoryFilter: v ?? "" })}>
-            <SelectTrigger className="w-[150px] h-9 text-xs">
-              <SelectValue placeholder="All Categories" />
-            </SelectTrigger>
+            <SelectTrigger className="w-[150px] h-9 text-xs"><SelectValue placeholder="All Categories" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="">All Categories</SelectItem>
-              {CATEGORIES.map((c) => (
-                <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
-              ))}
+              {CATEGORIES.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
             </SelectContent>
           </Select>
-
           {properties.length > 1 && (
             <Select value={state.propertyFilter} onValueChange={(v) => onChange({ propertyFilter: v ?? "" })}>
-              <SelectTrigger className="w-[140px] h-9 text-xs">
-                <SelectValue placeholder="All Properties" />
-              </SelectTrigger>
+              <SelectTrigger className="w-[140px] h-9 text-xs"><SelectValue placeholder="All Properties" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="">All Properties</SelectItem>
-                {properties.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
+                {properties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
-
-          <Input
-            type="date"
-            className="w-[130px] h-9 text-xs"
-            value={state.dateFrom}
-            onChange={(e) => onChange({ dateFrom: e.target.value })}
-            title="From date"
-          />
-          <Input
-            type="date"
-            className="w-[130px] h-9 text-xs"
-            value={state.dateTo}
-            onChange={(e) => onChange({ dateTo: e.target.value })}
-            title="To date"
-          />
-
+          <Input type="date" className="w-[130px] h-9 text-xs" value={state.dateFrom} onChange={(e) => onChange({ dateFrom: e.target.value })} title="From date" />
+          <Input type="date" className="w-[130px] h-9 text-xs" value={state.dateTo} onChange={(e) => onChange({ dateTo: e.target.value })} title="To date" />
           {hasActive && (
             <Button variant="ghost" size="sm" className="h-9 px-2 text-xs" onClick={onClear}>
-              <X className="size-3.5 mr-1" />
-              Clear
+              <X className="size-3.5 mr-1" />Clear
             </Button>
           )}
         </div>
       )}
-
-      {/* Desktop: always show full filter row (no toggle button needed) */}
     </div>
   );
 }
 
-// ─── Main table section ───────────────────────────────────────────────────────
+// ─── Needs Review tab content ─────────────────────────────────────────────────
+
+function MarkReviewedButton({ id }: { id: string }) {
+  const [pending, startTransition] = useTransition();
+  return (
+    <Button
+      size="sm" variant="outline" className="h-7 text-xs gap-1 shrink-0"
+      disabled={pending}
+      onClick={() => startTransition(async () => {
+        try { await markAsReviewed(id); toast.success("Marked as reviewed."); }
+        catch { toast.error("Something went wrong."); }
+      })}
+    >
+      <CheckCircle2 className="size-3" />
+      {pending ? "Saving…" : "Mark reviewed"}
+    </Button>
+  );
+}
+
+function NeedsReviewTab({
+  transactions,
+  properties,
+  allUnits,
+  onEdit,
+}: {
+  transactions: TransactionRow[];
+  properties: Property[];
+  allUnits: Unit[];
+  onEdit: (tx: TransactionRow) => void;
+}) {
+  if (transactions.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <CheckCircle2 className="size-12 text-muted-foreground mb-4" />
+        <p className="font-medium">Nothing to review — you&apos;re all caught up</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Transactions flagged for missing category, property, or receipt will appear here.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-2">
+        {transactions.map((tx) => (
+          <div
+            key={tx.id}
+            className="flex items-start gap-3 rounded-lg border bg-card px-4 py-3 cursor-pointer active:bg-accent"
+            onClick={() => onEdit(tx)}
+          >
+            <div className="flex-1 min-w-0 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium truncate">{tx.payee ?? <span className="text-muted-foreground italic">No payee</span>}</p>
+                <span className={`text-sm font-semibold tabular-nums shrink-0 ${tx.type === "income" ? "text-green-600" : "text-red-600"}`}>
+                  {formatAmount(tx.amount, tx.type)}
+                </span>
+              </div>
+              <p className="text-[10px] text-muted-foreground">{formatDate(tx.date)}</p>
+              <div className="flex flex-wrap gap-1 pt-0.5">
+                {!tx.category && <MissingChip label="No category" icon={AlertCircle} />}
+                {!tx.propertyName && <MissingAmberChip label="No property" icon={MapPin} />}
+                {tx.attachments.length === 0 && <MissingAmberChip label="No receipt" icon={Paperclip} />}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block rounded-lg border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/30">
+              <TableHead>Date</TableHead>
+              <TableHead>Payee</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Property</TableHead>
+              <TableHead>Receipt</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+              <TableHead className="w-[1px]"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {transactions.map((tx) => (
+              <TableRow key={tx.id} className="cursor-pointer hover:bg-muted/50" onClick={() => onEdit(tx)}>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{formatDate(tx.date)}</TableCell>
+                <TableCell className="font-medium max-w-[160px] truncate">
+                  {tx.payee ?? <span className="text-muted-foreground">—</span>}
+                </TableCell>
+                <TableCell>
+                  {tx.category ? (
+                    <div className="flex flex-col gap-0.5">
+                      <Badge className={`text-xs w-fit ${getCategoryBadgeClass(tx.category)}`}>{tx.category}</Badge>
+                      {tx.subcategory && <span className="text-xs text-muted-foreground">{tx.subcategory}</span>}
+                    </div>
+                  ) : (
+                    <MissingChip label="No category" icon={AlertCircle} />
+                  )}
+                </TableCell>
+                <TableCell>
+                  {tx.propertyName ? (
+                    <span className="text-sm">{tx.propertyName}{tx.unitName && ` · ${tx.unitName}`}</span>
+                  ) : (
+                    <MissingAmberChip label="No property" icon={MapPin} />
+                  )}
+                </TableCell>
+                <TableCell>
+                  {tx.attachments.length > 0 ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                      <Paperclip className="size-3" />{tx.attachments.length}
+                    </span>
+                  ) : (
+                    <MissingAmberChip label="No receipt" icon={Paperclip} />
+                  )}
+                </TableCell>
+                <TableCell className={`text-right text-sm font-medium whitespace-nowrap ${tx.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
+                  {formatAmount(tx.amount, tx.type)}
+                </TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); onEdit(tx); }}>
+                      <Pencil className="size-3" />
+                    </Button>
+                    <MarkReviewedButton id={tx.id} />
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </>
+  );
+}
+
+// ─── Trash tab content ────────────────────────────────────────────────────────
+
+function RestoreButton({ id }: { id: string }) {
+  const [pending, startTransition] = useTransition();
+  return (
+    <Button
+      size="sm" variant="outline" className="h-7 text-xs gap-1 shrink-0"
+      disabled={pending}
+      onClick={() => startTransition(async () => {
+        try { await restoreTransaction(id); toast.success("Transaction restored."); }
+        catch { toast.error("Something went wrong."); }
+      })}
+    >
+      <RotateCcw className="size-3" />
+      {pending ? "Restoring…" : "Restore"}
+    </Button>
+  );
+}
+
+function TrashTab({ transactions }: { transactions: TrashedRow[] }) {
+  if (transactions.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <Trash2 className="size-12 text-muted-foreground mb-4" />
+        <p className="font-medium">Trash is empty</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Deleted transactions appear here for 30 days before being permanently removed.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border overflow-hidden overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-muted/30">
+            <TableHead>Date</TableHead>
+            <TableHead>Payee</TableHead>
+            <TableHead>Category</TableHead>
+            <TableHead>Property</TableHead>
+            <TableHead className="text-right">Amount</TableHead>
+            <TableHead>Deleted On</TableHead>
+            <TableHead>Days Left</TableHead>
+            <TableHead className="w-[1px]"></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {transactions.map((tx) => {
+            const days = daysUntilDeletion(tx.deletedAt);
+            return (
+              <TableRow key={tx.id}>
+                <TableCell className="text-sm whitespace-nowrap text-muted-foreground">{formatDate(tx.date)}</TableCell>
+                <TableCell className="text-sm font-medium">
+                  {tx.payee ?? <span className="text-muted-foreground italic">No payee</span>}
+                </TableCell>
+                <TableCell>
+                  {tx.category ? (
+                    <Badge variant="outline" className={getCategoryBadgeClass(tx.category)}>
+                      {tx.subcategory ?? tx.category}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground text-sm">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {tx.propertyName ?? "—"}{tx.unitName && ` · ${tx.unitName}`}
+                </TableCell>
+                <TableCell className={`text-right text-sm font-medium whitespace-nowrap ${tx.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
+                  {formatAmount(tx.amount, tx.type)}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                  {tx.deletedAt
+                    ? new Date(tx.deletedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                    : "—"}
+                </TableCell>
+                <TableCell>
+                  <span className={`text-sm font-medium ${days <= 3 ? "text-destructive" : days <= 7 ? "text-amber-600" : "text-muted-foreground"}`}>
+                    {days}d
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <RestoreButton id={tx.id} />
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+// ─── All Transactions tab section ─────────────────────────────────────────────
 
 type TableSectionProps = {
   transactions: TransactionRow[];
   properties: Property[];
   allUnits: Unit[];
-  showAddButton?: boolean;
+  onOpenAdd: () => void;
+  onEdit: (tx: TransactionRow) => void;
 };
 
-export function TransactionsTableSection({
-  transactions,
-  properties,
-  allUnits,
-  showAddButton = true,
-}: TableSectionProps) {
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [editTransaction, setEditTransaction] = useState<TransactionFormData | undefined>();
+function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onEdit }: TableSectionProps) {
   const [page, setPage] = useState(0);
   const { deleteId, openDelete, closeDelete } = useDeleteDialog();
   const [viewerTx, setViewerTx] = useState<TransactionRow | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [filters, setFilters] = useState<FilterState>({
-    search: "",
-    typeFilter: "all",
-    categoryFilter: "",
-    propertyFilter: "",
-    dateFrom: "",
-    dateTo: "",
+    search: "", typeFilter: "all", categoryFilter: "", propertyFilter: "", dateFrom: "", dateTo: "",
   });
 
-  function patchFilters(patch: Partial<FilterState>) {
-    setFilters((f) => ({ ...f, ...patch }));
-  }
-
-  function clearFilters() {
-    setFilters({ search: "", typeFilter: "all", categoryFilter: "", propertyFilter: "", dateFrom: "", dateTo: "" });
-  }
+  function patchFilters(patch: Partial<FilterState>) { setFilters((f) => ({ ...f, ...patch })); }
+  function clearFilters() { setFilters({ search: "", typeFilter: "all", categoryFilter: "", propertyFilter: "", dateFrom: "", dateTo: "" }); }
 
   const hasActiveFilters =
-    filters.search.trim() !== "" ||
-    filters.typeFilter !== "all" ||
-    filters.categoryFilter !== "" ||
-    filters.propertyFilter !== "" ||
-    filters.dateFrom !== "" ||
-    filters.dateTo !== "";
+    filters.search.trim() !== "" || filters.typeFilter !== "all" ||
+    filters.categoryFilter !== "" || filters.propertyFilter !== "" ||
+    filters.dateFrom !== "" || filters.dateTo !== "";
 
   useEffect(() => { setPage(0); }, [filters]);
 
-  const filteredTransactions = useMemo(() => {
-    let result = transactions;
+  const filtered = useMemo(() => {
+    let r = transactions;
     if (filters.search.trim()) {
       const q = filters.search.toLowerCase();
-      result = result.filter(
-        (tx) =>
-          tx.payee?.toLowerCase().includes(q) ||
-          tx.notes?.toLowerCase().includes(q) ||
-          tx.category?.toLowerCase().includes(q)
-      );
+      r = r.filter((tx) => tx.payee?.toLowerCase().includes(q) || tx.notes?.toLowerCase().includes(q) || tx.category?.toLowerCase().includes(q));
     }
-    if (filters.typeFilter !== "all") result = result.filter((tx) => tx.type === filters.typeFilter);
-    if (filters.categoryFilter) result = result.filter((tx) => tx.category === filters.categoryFilter);
-    if (filters.propertyFilter) result = result.filter((tx) => tx.propertyId === filters.propertyFilter);
-    if (filters.dateFrom) result = result.filter((tx) => tx.date >= filters.dateFrom);
-    if (filters.dateTo) result = result.filter((tx) => tx.date <= filters.dateTo);
-    return result;
+    if (filters.typeFilter !== "all") r = r.filter((tx) => tx.type === filters.typeFilter);
+    if (filters.categoryFilter) r = r.filter((tx) => tx.category === filters.categoryFilter);
+    if (filters.propertyFilter) r = r.filter((tx) => tx.propertyId === filters.propertyFilter);
+    if (filters.dateFrom) r = r.filter((tx) => tx.date >= filters.dateFrom);
+    if (filters.dateTo) r = r.filter((tx) => tx.date <= filters.dateTo);
+    return r;
   }, [transactions, filters]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / PAGE_SIZE));
-  const pageSlice = filteredTransactions.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-
-  function handleOpenAdd() { setEditTransaction(undefined); setSheetOpen(true); }
-
-  function handleEdit(tx: TransactionRow) {
-    setEditTransaction({
-      id: tx.id,
-      date: tx.date,
-      amount: tx.amount,
-      type: tx.type,
-      payee: tx.payee,
-      category: tx.category,
-      subcategory: tx.subcategory,
-      propertyId: tx.propertyId,
-      unitId: tx.unitId,
-      notes: tx.notes,
-      attachments: tx.attachments,
-    });
-    setSheetOpen(true);
-  }
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageSlice = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <>
-      {showAddButton && (
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold">Transactions</h1>
-          <Button onClick={handleOpenAdd} size="sm" className="gap-1.5">
-            <Plus className="size-4" />
-            <span className="hidden sm:inline">Add Transaction</span>
-            <span className="sm:hidden">Add</span>
-          </Button>
-        </div>
-      )}
-
-      {!showAddButton && transactions.length > 0 && (
-        <div className="flex justify-end mb-2">
-          <Button size="sm" onClick={handleOpenAdd}>
-            <Plus className="size-4 mr-1" />
-            Add Transaction
-          </Button>
-        </div>
-      )}
-
       {/* Filter bar */}
       {transactions.length > 0 && (
         <div className="mb-4">
-          {/* Mobile: search + toggle */}
           <div className="md:hidden">
-            <FilterPanel
-              state={filters}
-              onChange={patchFilters}
-              onClear={clearFilters}
-              properties={properties}
-              hasActive={hasActiveFilters}
-              open={filtersOpen}
-              onToggle={() => setFiltersOpen((o) => !o)}
-            />
+            <FilterPanel state={filters} onChange={patchFilters} onClear={clearFilters} properties={properties} hasActive={hasActiveFilters} open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} />
           </div>
-
-          {/* Desktop: full inline filters */}
           <div className="hidden md:flex flex-wrap gap-2 items-center">
             <div className="relative flex-1 min-w-[180px]">
               <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground pointer-events-none" />
-              <Input
-                placeholder="Search payee or notes…"
-                className="pl-8 h-9 text-sm"
-                value={filters.search}
-                onChange={(e) => patchFilters({ search: e.target.value })}
-              />
+              <Input placeholder="Search payee or notes…" className="pl-8 h-9 text-sm" value={filters.search} onChange={(e) => patchFilters({ search: e.target.value })} />
             </div>
             <div className="flex rounded-md border overflow-hidden h-9 text-xs shrink-0">
               {(["all", "income", "expense"] as const).map((t) => (
-                <button
-                  key={t}
-                  className={`px-3 capitalize transition-colors ${
-                    filters.typeFilter === t
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-background hover:bg-muted"
-                  }`}
-                  onClick={() => patchFilters({ typeFilter: t })}
-                >
+                <button key={t} className={`px-3 capitalize transition-colors ${filters.typeFilter === t ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`} onClick={() => patchFilters({ typeFilter: t })}>
                   {t === "all" ? "All" : t}
                 </button>
               ))}
             </div>
             <Select value={filters.categoryFilter} onValueChange={(v) => patchFilters({ categoryFilter: v ?? "" })}>
-              <SelectTrigger className="w-[150px] h-9 text-xs">
-                <SelectValue placeholder="All Categories" />
-              </SelectTrigger>
+              <SelectTrigger className="w-[150px] h-9 text-xs"><SelectValue placeholder="All Categories" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="">All Categories</SelectItem>
-                {CATEGORIES.map((c) => (
-                  <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
-                ))}
+                {CATEGORIES.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
             {properties.length > 1 && (
               <Select value={filters.propertyFilter} onValueChange={(v) => patchFilters({ propertyFilter: v ?? "" })}>
-                <SelectTrigger className="w-[140px] h-9 text-xs">
-                  <SelectValue placeholder="All Properties" />
-                </SelectTrigger>
+                <SelectTrigger className="w-[140px] h-9 text-xs"><SelectValue placeholder="All Properties" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">All Properties</SelectItem>
-                  {properties.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
+                  {properties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             )}
-            <Input
-              type="date"
-              className="w-[130px] h-9 text-xs"
-              value={filters.dateFrom}
-              onChange={(e) => patchFilters({ dateFrom: e.target.value })}
-              title="From date"
-            />
-            <Input
-              type="date"
-              className="w-[130px] h-9 text-xs"
-              value={filters.dateTo}
-              onChange={(e) => patchFilters({ dateTo: e.target.value })}
-              title="To date"
-            />
+            <Input type="date" className="w-[130px] h-9 text-xs" value={filters.dateFrom} onChange={(e) => patchFilters({ dateFrom: e.target.value })} title="From date" />
+            <Input type="date" className="w-[130px] h-9 text-xs" value={filters.dateTo} onChange={(e) => patchFilters({ dateTo: e.target.value })} title="To date" />
             {hasActiveFilters && (
               <Button variant="ghost" size="sm" className="h-9 px-2 text-xs" onClick={clearFilters}>
-                <X className="size-3.5 mr-1" />
-                Clear
+                <X className="size-3.5 mr-1" />Clear
               </Button>
             )}
           </div>
         </div>
       )}
 
-      {/* Empty states */}
+      {/* Empty / filtered-empty states */}
       {transactions.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center gap-4 border rounded-lg bg-muted/30">
           <Receipt className="size-12 text-muted-foreground" />
@@ -527,35 +649,23 @@ export function TransactionsTableSection({
             <p className="font-medium">No transactions yet</p>
             <p className="text-sm text-muted-foreground mt-1">Add your first transaction to start tracking.</p>
           </div>
-          <Button onClick={handleOpenAdd}>
-            <Plus className="size-4 mr-2" />
-            Add Transaction
-          </Button>
+          <Button onClick={onOpenAdd}><Plus className="size-4 mr-2" />Add Transaction</Button>
         </div>
-      ) : filteredTransactions.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center gap-3 border rounded-lg bg-muted/30">
           <SlidersHorizontal className="size-10 text-muted-foreground" />
           <div>
             <p className="font-medium">No transactions match your filters</p>
             <p className="text-sm text-muted-foreground mt-1">Try adjusting or clearing your filters.</p>
           </div>
-          <Button variant="outline" size="sm" onClick={clearFilters}>
-            <X className="size-3.5 mr-1.5" />
-            Clear Filters
-          </Button>
+          <Button variant="outline" size="sm" onClick={clearFilters}><X className="size-3.5 mr-1.5" />Clear Filters</Button>
         </div>
       ) : (
         <>
           {/* Mobile: card list */}
           <div className="md:hidden space-y-2">
             {pageSlice.map((tx) => (
-              <TransactionCard
-                key={tx.id}
-                tx={tx}
-                onEdit={handleEdit}
-                onDelete={openDelete}
-                onViewAttachments={setViewerTx}
-              />
+              <TransactionCard key={tx.id} tx={tx} onEdit={onEdit} onDelete={openDelete} onViewAttachments={setViewerTx} />
             ))}
           </div>
 
@@ -577,7 +687,14 @@ export function TransactionsTableSection({
               </TableHeader>
               <TableBody>
                 {pageSlice.map((tx) => (
-                  <TableRow key={tx.id} className="cursor-pointer" onClick={() => handleEdit(tx)}>
+                  <TableRow
+                    key={tx.id}
+                    className={cn(
+                      "cursor-pointer",
+                      tx.needsReview ? "border-l-2 border-l-amber-400 bg-amber-50/30 hover:bg-amber-50/50 dark:bg-amber-950/10 dark:hover:bg-amber-950/20" : "hover:bg-muted/30"
+                    )}
+                    onClick={() => onEdit(tx)}
+                  >
                     <TableCell className="text-muted-foreground text-xs">{formatDate(tx.date)}</TableCell>
                     <TableCell className="font-medium max-w-[140px] truncate">
                       {tx.payee ?? <span className="text-muted-foreground">—</span>}
@@ -589,11 +706,11 @@ export function TransactionsTableSection({
                           {tx.subcategory && <span className="text-xs text-muted-foreground">{tx.subcategory}</span>}
                         </div>
                       ) : (
-                        <span className="text-muted-foreground">—</span>
+                        <MissingChip label="No category" icon={AlertCircle} />
                       )}
                     </TableCell>
                     <TableCell className="text-sm max-w-[120px] truncate">
-                      {tx.propertyName ?? <span className="text-muted-foreground">—</span>}
+                      {tx.propertyName ?? <MissingAmberChip label="No property" icon={MapPin} />}
                     </TableCell>
                     <TableCell className="text-sm">
                       {tx.unitName ?? <span className="text-muted-foreground">—</span>}
@@ -603,40 +720,24 @@ export function TransactionsTableSection({
                         {formatAmount(tx.amount, tx.type)}
                       </span>
                     </TableCell>
-                    <TableCell
-                      className="text-center"
-                      onClick={(e) => {
-                        if (tx.attachments.length > 0) { e.stopPropagation(); setViewerTx(tx); }
-                      }}
-                    >
+                    <TableCell className="text-center" onClick={(e) => { if (tx.attachments.length > 0) { e.stopPropagation(); setViewerTx(tx); } }}>
                       {tx.attachments.length > 0 ? (
                         <Paperclip className="size-3.5 text-primary mx-auto cursor-pointer hover:opacity-70" />
                       ) : null}
                     </TableCell>
                     <TableCell className="text-center">
-                      {tx.needsReview ? (
-                        <AlertTriangle className="size-3.5 text-yellow-500 mx-auto" />
-                      ) : (
-                        <CheckCircle2 className="size-3.5 text-green-500 mx-auto" />
-                      )}
+                      {tx.needsReview
+                        ? <AlertTriangle className="size-3.5 text-amber-500 mx-auto" />
+                        : <CheckCircle2 className="size-3.5 text-green-500 mx-auto" />}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
-                        <DropdownMenuTrigger
-                          className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-accent"
-                          aria-label="Row actions"
-                        >
+                        <DropdownMenuTrigger className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-accent" aria-label="Row actions">
                           <MoreHorizontal className="size-4" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEdit(tx)}>
-                            <Pencil className="size-3.5 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem variant="destructive" onClick={() => openDelete(tx.id)}>
-                            <Trash2 className="size-3.5 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onEdit(tx)}><Pencil className="size-3.5 mr-2" />Edit</DropdownMenuItem>
+                          <DropdownMenuItem variant="destructive" onClick={() => openDelete(tx.id)}><Trash2 className="size-3.5 mr-2" />Delete</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -650,38 +751,22 @@ export function TransactionsTableSection({
           <div className="flex items-center justify-between pt-3 text-sm text-muted-foreground">
             <span>
               {hasActiveFilters
-                ? `${filteredTransactions.length} of ${transactions.length} transactions`
+                ? `${filtered.length} of ${transactions.length} transactions`
                 : `${transactions.length} transaction${transactions.length !== 1 ? "s" : ""}`}
               {totalPages > 1 && ` · page ${page + 1} of ${totalPages}`}
             </span>
             {totalPages > 1 && (
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
-                  Previous
-                </Button>
-                <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>
-                  Next
-                </Button>
+                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</Button>
+                <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Next</Button>
               </div>
             )}
           </div>
         </>
       )}
 
-      <AddTransactionSheet
-        open={sheetOpen}
-        onOpenChange={(o) => { setSheetOpen(o); if (!o) setEditTransaction(undefined); }}
-        transaction={editTransaction}
-        properties={properties}
-        allUnits={allUnits}
-      />
-
       {deleteId && (
-        <DeleteTransactionDialog
-          id={deleteId}
-          open={!!deleteId}
-          onOpenChange={(o) => { if (!o) closeDelete(); }}
-        />
+        <DeleteTransactionDialog id={deleteId} open={!!deleteId} onOpenChange={(o) => { if (!o) closeDelete(); }} />
       )}
 
       {viewerTx && viewerTx.attachments.length > 0 && (
@@ -697,14 +782,153 @@ export function TransactionsTableSection({
   );
 }
 
-export function TransactionsClient({ transactions, properties, allUnits }: Props) {
+// ─── TransactionsTableSection — self-contained embed (used by property detail) ─
+
+export function TransactionsTableSection({
+  transactions,
+  properties,
+  allUnits,
+  showAddButton = true,
+}: {
+  transactions: TransactionRow[];
+  properties: Property[];
+  allUnits: Unit[];
+  showAddButton?: boolean;
+}) {
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [editTransaction, setEditTransaction] = useState<TransactionFormData | undefined>();
+
+  function handleOpenAdd() { setEditTransaction(undefined); setSheetOpen(true); }
+  function handleEdit(tx: TransactionRow) {
+    setEditTransaction({
+      id: tx.id, date: tx.date, amount: tx.amount, type: tx.type,
+      payee: tx.payee, category: tx.category, subcategory: tx.subcategory,
+      propertyId: tx.propertyId, unitId: tx.unitId, notes: tx.notes,
+      attachments: tx.attachments,
+    });
+    setSheetOpen(true);
+  }
+
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      <TransactionsTableSection
+    <>
+      {showAddButton && transactions.length === 0 ? null : !showAddButton && transactions.length > 0 ? (
+        <div className="flex justify-end mb-2">
+          <Button size="sm" onClick={handleOpenAdd}><Plus className="size-4 mr-1" />Add Transaction</Button>
+        </div>
+      ) : null}
+
+      <AllTransactionsTab
         transactions={transactions}
         properties={properties}
         allUnits={allUnits}
-        showAddButton
+        onOpenAdd={handleOpenAdd}
+        onEdit={handleEdit}
+      />
+
+      <AddTransactionSheet
+        key={editTransaction ? editTransaction.id : "new"}
+        open={sheetOpen}
+        onOpenChange={(o) => { setSheetOpen(o); if (!o) setEditTransaction(undefined); }}
+        transaction={editTransaction}
+        properties={properties}
+        allUnits={allUnits}
+      />
+    </>
+  );
+}
+
+// ─── Root client component ────────────────────────────────────────────────────
+
+export function TransactionsClient({ transactions, trashedTransactions, properties, allUnits }: Props) {
+  const [tab, setTab] = useState<Tab>("all");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [editTransaction, setEditTransaction] = useState<TransactionFormData | undefined>();
+
+  const needsReviewTxs = transactions.filter((tx) => tx.needsReview);
+  const needsReviewCount = needsReviewTxs.length;
+
+  function handleOpenAdd() { setEditTransaction(undefined); setSheetOpen(true); }
+  function handleEdit(tx: TransactionRow) {
+    setEditTransaction({
+      id: tx.id, date: tx.date, amount: tx.amount, type: tx.type,
+      payee: tx.payee, category: tx.category, subcategory: tx.subcategory,
+      propertyId: tx.propertyId, unitId: tx.unitId, notes: tx.notes,
+      attachments: tx.attachments,
+    });
+    setSheetOpen(true);
+  }
+
+  return (
+    <div className="p-4 md:p-6 space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Transactions</h1>
+        <Button onClick={handleOpenAdd} size="sm" className="gap-1.5">
+          <Plus className="size-4" />
+          <span className="hidden sm:inline">Add Transaction</span>
+          <span className="sm:hidden">Add</span>
+        </Button>
+      </div>
+
+      {/* Tab nav — Tessa-style underline tabs */}
+      <div className="flex gap-0 border-b">
+        {(
+          [
+            { id: "all" as Tab, label: "All Transactions", count: undefined as number | undefined },
+            { id: "needs-review" as Tab, label: "Needs Review", count: needsReviewCount as number | undefined },
+            { id: "trash" as Tab, label: "Trash", count: undefined as number | undefined },
+          ]
+        ).map(({ id, label, count }) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={cn(
+              "px-4 py-2.5 text-sm font-medium transition-colors relative flex items-center gap-2 whitespace-nowrap",
+              tab === id
+                ? "text-foreground after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {label}
+            {count !== undefined && count > 0 && (
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+                {count > 99 ? "99+" : count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      {tab === "all" && (
+        <AllTransactionsTab
+          transactions={transactions}
+          properties={properties}
+          allUnits={allUnits}
+          onOpenAdd={handleOpenAdd}
+          onEdit={handleEdit}
+        />
+      )}
+      {tab === "needs-review" && (
+        <NeedsReviewTab
+          transactions={needsReviewTxs}
+          properties={properties}
+          allUnits={allUnits}
+          onEdit={handleEdit}
+        />
+      )}
+      {tab === "trash" && (
+        <TrashTab transactions={trashedTransactions} />
+      )}
+
+      {/* Shared sheet for add/edit */}
+      <AddTransactionSheet
+        key={editTransaction ? editTransaction.id : "new"}
+        open={sheetOpen}
+        onOpenChange={(o) => { setSheetOpen(o); if (!o) setEditTransaction(undefined); }}
+        transaction={editTransaction}
+        properties={properties}
+        allUnits={allUnits}
       />
     </div>
   );
