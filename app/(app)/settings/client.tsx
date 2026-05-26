@@ -125,7 +125,7 @@ export function SettingsClient({ user, username, phone, usedKb, quotaKb }: Props
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-phone">Phone (optional)</Label>
+              <Label htmlFor="edit-phone">Phone</Label>
               <Input
                 id="edit-phone"
                 value={editPhone}

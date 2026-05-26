@@ -80,7 +80,7 @@ export function OnboardingClient({ user }: Props) {
           </div>
 
           <div>
-            <Label htmlFor="phone">Phone (optional)</Label>
+            <Label htmlFor="phone">Phone</Label>
             <Input
               id="phone"
               name="phone"
