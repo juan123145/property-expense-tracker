@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -23,26 +23,31 @@ type Props = { needsReviewCount: number; isAdmin?: boolean };
 export function AppSidebar({ needsReviewCount, isAdmin }: Props) {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   return (
     <aside className={cn(
       "hidden md:flex flex-col shrink-0 border-r bg-card h-screen sticky top-0 transition-all duration-300 ease-in-out",
-      isCollapsed ? "w-20" : "w-60"
+      isMounted && isCollapsed ? "w-20" : "w-60"
     )}>
       <div className={cn(
         "flex items-center justify-between px-4 py-4 border-b transition-all duration-300",
-        isCollapsed && "flex-col gap-2"
+        isMounted && isCollapsed && "flex-col gap-2"
       )}>
-        {!isCollapsed && <AppLogo />}
+        {!isMounted || !isCollapsed ? <AppLogo /> : null}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className={cn(
             "p-1.5 hover:bg-accent rounded-md transition-colors ml-auto",
-            isCollapsed && "ml-0"
+            isMounted && isCollapsed && "ml-0"
           )}
           title={isCollapsed ? "Expand" : "Collapse"}
         >
-          {isCollapsed ? (
+          {isMounted && isCollapsed ? (
             <ChevronRight className="size-4" />
           ) : (
             <ChevronLeft className="size-4" />
@@ -60,15 +65,15 @@ export function AppSidebar({ needsReviewCount, isAdmin }: Props) {
               href={href}
               className={cn(
                 "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors justify-center",
-                isCollapsed && "flex-col",
+                isMounted && isCollapsed && "flex-col",
                 active
                   ? "bg-primary text-primary-foreground font-medium"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
-              title={isCollapsed ? label : undefined}
+              title={isMounted && isCollapsed ? label : undefined}
             >
               <Icon className="size-5 shrink-0" />
-              {!isCollapsed && (
+              {!isMounted || !isCollapsed ? (
                 <>
                   <span className="flex-1">{label}</span>
                   {badge !== null && (
@@ -77,8 +82,8 @@ export function AppSidebar({ needsReviewCount, isAdmin }: Props) {
                     </span>
                   )}
                 </>
-              )}
-              {isCollapsed && badge !== null && (
+              ) : null}
+              {isMounted && isCollapsed && badge !== null && (
                 <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-white">
                   {badge > 99 ? "99+" : badge}
                 </span>
@@ -90,35 +95,35 @@ export function AppSidebar({ needsReviewCount, isAdmin }: Props) {
       {isAdmin && (
         <div className={cn(
           "px-2 py-3 border-t border-b transition-all duration-300",
-          isCollapsed && "flex justify-center"
+          isMounted && isCollapsed && "flex justify-center"
         )}>
           <Link
             href="/admin"
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-md text-sm text-primary font-medium hover:bg-primary/10 transition-colors border border-primary/20",
-              isCollapsed && "flex-col p-1.5"
+              isMounted && isCollapsed && "flex-col p-1.5"
             )}
-            title={isCollapsed ? "Admin" : undefined}
+            title={isMounted && isCollapsed ? "Admin" : undefined}
           >
             <Shield className="size-4 shrink-0" />
-            {!isCollapsed && "Admin"}
+            {!isMounted || !isCollapsed ? "Admin" : null}
           </Link>
         </div>
       )}
       <div className={cn(
         "px-2 py-3 border-t transition-all duration-300",
-        isCollapsed && "flex justify-center"
+        isMounted && isCollapsed && "flex justify-center"
       )}>
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors",
-            isCollapsed && "flex-col p-1.5"
+            isMounted && isCollapsed && "flex-col p-1.5"
           )}
-          title={isCollapsed ? "Sign out" : undefined}
+          title={isMounted && isCollapsed ? "Sign out" : undefined}
         >
           <LogOut className="size-4 shrink-0" />
-          {!isCollapsed && "Sign out"}
+          {!isMounted || !isCollapsed ? "Sign out" : null}
         </button>
       </div>
     </aside>
