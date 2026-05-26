@@ -396,7 +396,7 @@ export function AdminClient({ users, currentUserId }: Props) {
 
       {/* File preview modal */}
       <Dialog open={!!previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }}>
-        <DialogContent style={{ width: '90vw', maxWidth: '90vw', maxHeight: '92vh' }} className="flex flex-col p-0 gap-0 border">
+        <DialogContent style={{ width: '80vw', maxWidth: '80vw', maxHeight: '85vh' }} className="flex flex-col p-0 gap-0 border">
           <DialogHeader className="border-b px-6 py-4 shrink-0">
             <DialogTitle className="text-base">
               {previewFile?.fileName || "File"}
@@ -466,7 +466,7 @@ export function AdminClient({ users, currentUserId }: Props) {
 
       {/* Delete confirmation modal */}
       {deleteConfirmFile && (
-        <div className="fixed inset-0 z-[99999] flex items-start justify-center p-4 bg-black/50 backdrop-blur-sm pt-12">
+        <div style={{ zIndex: 999999 }} className="fixed inset-0 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-card rounded-xl border shadow-xl w-full max-w-md p-6 space-y-4">
             <div className="flex items-start gap-3">
               <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100">
