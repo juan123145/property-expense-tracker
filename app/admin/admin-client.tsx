@@ -7,6 +7,7 @@ import { adminDeleteUser, adminDeleteAttachment } from "./actions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 type FileRow = {
@@ -394,65 +395,52 @@ export function AdminClient({ users, currentUserId }: Props) {
       </Sheet>
 
       {/* File preview modal */}
-      {previewFile && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-card rounded-xl border shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b">
+      <Dialog open={!!previewFile} onOpenChange={(open) => !open && setPreviewFile(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm truncate">{previewFile.fileName}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {fmtBytes(previewFile.sizeKb ?? 0)} • {new Date(previewFile.txDate).toLocaleDateString()}
+                <p className="truncate">{previewFile?.fileName}</p>
+                <p className="text-xs text-muted-foreground font-normal mt-0.5">
+                  {previewFile && `${fmtBytes(previewFile.sizeKb ?? 0)} • ${new Date(previewFile.txDate).toLocaleDateString()}`}
                 </p>
               </div>
-              <button
-                onClick={() => setPreviewFile(null)}
-                className="ml-4 p-1.5 rounded-md text-muted-foreground hover:bg-muted transition-colors"
-              >
-                <X className="size-5" />
-              </button>
-            </div>
+            </DialogTitle>
+          </DialogHeader>
 
-            {/* Content */}
-            <div className="flex-1 overflow-auto flex items-center justify-center bg-muted/30 p-6">
-              {isPreviewable(previewFile.fileName) ? (
-                previewFile.fileName?.toLowerCase().endsWith('.pdf') ? (
-                  <iframe
-                    src={previewFile.url}
-                    className="w-full h-full rounded-md border"
-                    title="PDF Preview"
-                  />
-                ) : (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={previewFile.url}
-                    alt={previewFile.fileName ?? "File preview"}
-                    className="max-w-full max-h-full object-contain rounded-md"
-                  />
-                )
+          {/* Preview Content */}
+          <div className="flex-1 overflow-auto flex items-center justify-center bg-muted/30 p-4 rounded-md">
+            {previewFile && isPreviewable(previewFile.fileName) ? (
+              previewFile.fileName?.toLowerCase().endsWith('.pdf') ? (
+                <iframe
+                  src={previewFile.url}
+                  className="w-full h-full rounded-md border"
+                  title="PDF Preview"
+                />
               ) : (
-                <div className="flex flex-col items-center gap-4">
-                  <div className="flex items-center justify-center w-16 h-16 rounded-lg bg-muted">
-                    <FileX className="size-8 text-muted-foreground" />
-                  </div>
-                  <p className="text-sm font-medium text-muted-foreground">File not compatible for preview</p>
-                  <p className="text-xs text-muted-foreground max-w-xs text-center">
-                    This file type cannot be opened in the browser. Click the download button below to save it.
-                  </p>
-                  <a
-                    href={previewFile.url}
-                    download={previewFile.fileName ?? "file"}
-                    className="flex items-center gap-2 mt-4 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-                  >
-                    <Download className="size-4" />
-                    Download File
-                  </a>
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={previewFile.url}
+                  alt={previewFile.fileName ?? "File preview"}
+                  className="max-w-full max-h-full object-contain rounded-md"
+                />
+              )
+            ) : previewFile ? (
+              <div className="flex flex-col items-center gap-4">
+                <div className="flex items-center justify-center w-16 h-16 rounded-lg bg-muted">
+                  <FileX className="size-8 text-muted-foreground" />
                 </div>
-              )}
-            </div>
+                <p className="text-sm font-medium text-muted-foreground">File not compatible for preview</p>
+                <p className="text-xs text-muted-foreground max-w-xs text-center">
+                  This file type cannot be opened in the browser. Click the download button below to save it.
+                </p>
+              </div>
+            ) : null}
+          </div>
 
-            {/* Footer with actions */}
-            <div className="flex items-center justify-between px-6 py-4 border-t gap-2">
+          {/* Footer with actions */}
+          {previewFile && (
+            <div className="flex items-center justify-between gap-2 pt-4 border-t">
               <a
                 href={previewFile.url}
                 download={previewFile.fileName ?? "file"}
@@ -474,9 +462,9 @@ export function AdminClient({ users, currentUserId }: Props) {
                 Delete
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete confirmation modal */}
       {deleteConfirmFile && (
