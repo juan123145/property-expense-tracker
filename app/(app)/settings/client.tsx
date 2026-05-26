@@ -3,12 +3,18 @@
 import { useState, useTransition, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { signOut } from "next-auth/react";
-import { User, HardDrive, Trash2, AlertTriangle, Shield, X, Monitor, Sun, Moon, LogOut } from "lucide-react";
+import { toast } from "sonner";
+import { User, HardDrive, Trash2, AlertTriangle, Shield, X, Monitor, Sun, Moon, LogOut, Edit2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { deleteAccount } from "./actions";
+import { deleteAccount, updateUserProfile } from "./actions";
 
 type Props = {
   user: { name: string | null; email: string | null; image: string | null };
+  username: string | null;
+  phone: string | null;
   usedKb: number;
   quotaKb: number;
 };
@@ -19,9 +25,13 @@ function fmtBytes(kb: number): string {
   return `${(kb / 1024 / 1024).toFixed(2)} GB`;
 }
 
-export function SettingsClient({ user, usedKb, quotaKb }: Props) {
+export function SettingsClient({ user, username, phone, usedKb, quotaKb }: Props) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteInput, setDeleteInput] = useState("");
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editUsername, setEditUsername] = useState(username ?? "");
+  const [editPhone, setEditPhone] = useState(phone ?? "");
+  const [editName, setEditName] = useState(user.name ?? "");
   const [isPending, startTransition] = useTransition();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -43,6 +53,23 @@ export function SettingsClient({ user, usedKb, quotaKb }: Props) {
     });
   }
 
+  function handleUpdateProfile() {
+    startTransition(async () => {
+      const formData = new FormData();
+      formData.set("username", editUsername);
+      formData.set("name", editName);
+      formData.set("phone", editPhone);
+
+      const result = await updateUserProfile(formData);
+      if (result?.error) {
+        toast.error(result.error);
+      } else {
+        toast.success("Profile updated!");
+        setIsEditingProfile(false);
+      }
+    });
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-2xl">
       {/* Header */}
@@ -53,51 +80,139 @@ export function SettingsClient({ user, usedKb, quotaKb }: Props) {
 
       {/* Profile */}
       <section className="rounded-xl border bg-card overflow-hidden">
-        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b bg-muted/30">
-          <User className="size-4 text-muted-foreground" />
-          <h2 className="font-semibold text-sm">Profile</h2>
-        </div>
-        <div className="p-5 flex items-start gap-5">
-          {user.image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={user.image}
-              alt={user.name ?? ""}
-              referrerPolicy="no-referrer"
-              className="size-16 rounded-full shrink-0 ring-2 ring-border"
-            />
-          ) : (
-            <div className="size-16 rounded-full shrink-0 bg-primary flex items-center justify-center ring-2 ring-border">
-              <span className="text-primary-foreground text-xl font-bold">
-                {(user.name ?? user.email ?? "?")[0].toUpperCase()}
-              </span>
-            </div>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b bg-muted/30">
+          <div className="flex items-center gap-2.5">
+            <User className="size-4 text-muted-foreground" />
+            <h2 className="font-semibold text-sm">Profile</h2>
+          </div>
+          {!isEditingProfile && (
+            <button
+              onClick={() => setIsEditingProfile(true)}
+              className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Edit2 className="size-3" />
+              Edit
+            </button>
           )}
-          <div className="space-y-3.5 flex-1 min-w-0">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Name</p>
-                <p className="text-sm font-medium truncate">{user.name ?? "—"}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Email</p>
-                <p className="text-sm font-medium truncate">{user.email ?? "—"}</p>
-              </div>
+        </div>
+
+        {isEditingProfile ? (
+          <div className="p-5 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Full Name</Label>
+              <Input
+                id="edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="John Doe"
+                disabled={isPending}
+              />
             </div>
-            <p className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
-              <Shield className="size-3.5 shrink-0" />
-              Signed in with Google — to update your name or email, visit{" "}
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-username">Username</Label>
+              <Input
+                id="edit-username"
+                value={editUsername}
+                onChange={(e) => setEditUsername(e.target.value)}
+                placeholder="john_doe"
+                pattern="[a-zA-Z0-9_]+"
+                minLength={3}
+                maxLength={20}
+                disabled={isPending}
+              />
+              <p className="text-xs text-muted-foreground">3-20 characters, letters/numbers/underscore only</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-phone">Phone (optional)</Label>
+              <Input
+                id="edit-phone"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                type="tel"
+                placeholder="+1 (555) 123-4567"
+                disabled={isPending}
+              />
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              <Shield className="size-3 inline mr-1" />
+              Email is managed by Google. Visit{" "}
               <a
                 href="https://myaccount.google.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline hover:text-foreground transition-colors"
+                className="underline hover:text-foreground"
               >
                 myaccount.google.com
               </a>
+              {" "}to change it.
             </p>
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsEditingProfile(false);
+                  setEditUsername(username ?? "");
+                  setEditPhone(phone ?? "");
+                  setEditName(user.name ?? "");
+                }}
+                disabled={isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleUpdateProfile}
+                disabled={isPending}
+              >
+                {isPending ? "Saving…" : "Save Changes"}
+              </Button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="p-5 flex items-start gap-5">
+            {user.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={user.image}
+                alt={user.name ?? ""}
+                referrerPolicy="no-referrer"
+                className="size-16 rounded-full shrink-0 ring-2 ring-border"
+              />
+            ) : (
+              <div className="size-16 rounded-full shrink-0 bg-primary flex items-center justify-center ring-2 ring-border">
+                <span className="text-primary-foreground text-xl font-bold">
+                  {(user.name ?? user.email ?? "?")[0].toUpperCase()}
+                </span>
+              </div>
+            )}
+            <div className="space-y-3.5 flex-1 min-w-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Name</p>
+                  <p className="text-sm font-medium truncate">{user.name ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Email</p>
+                  <p className="text-sm font-medium truncate">{user.email ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Username</p>
+                  <p className="text-sm font-medium truncate">{username ? `@${username}` : "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Phone</p>
+                  <p className="text-sm font-medium truncate">{phone ?? "—"}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Sign out — shown on mobile where the sidebar button isn't visible */}
         <div className="md:hidden px-5 pb-4">
           <button
