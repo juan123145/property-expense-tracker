@@ -396,7 +396,7 @@ export function AdminClient({ users, currentUserId }: Props) {
 
       {/* File preview modal */}
       <Dialog open={!!previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }}>
-        <DialogContent className="max-w-7xl max-h-[95vh] flex flex-col p-0 gap-0 border">
+        <DialogContent className="!max-w-7xl max-h-[95vh] w-[95vw] flex flex-col p-0 gap-0 border">
           <DialogHeader className="border-b px-6 py-4 shrink-0">
             <DialogTitle className="text-base">
               {previewFile?.fileName || "File"}
