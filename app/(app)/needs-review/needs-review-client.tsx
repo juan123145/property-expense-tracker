@@ -31,6 +31,7 @@ type TransactionRow = {
   needsReview: boolean | null;
   propertyName: string | null;
   unitName: string | null;
+  attachmentUrl: string | null;
   attachments: Array<{ id: string; url: string; name: string | null; sizeKb: number | null }>;
 };
 
@@ -57,13 +58,26 @@ function formatAmount(amount: string, type: string) {
   return type === "income" ? `+$${formatted}` : `-$${formatted}`;
 }
 
-function MarkReviewedButton({ id }: { id: string }) {
+function MarkReviewedButton({ tx }: { tx: TransactionRow }) {
   const [pending, startTransition] = useTransition();
+
+  // Check if all required fields are complete
+  const hasPayee = !!tx.payee;
+  const hasCategory = !!tx.category;
+  const hasProperty = !!tx.propertyId;
+  const hasReceipt = tx.attachments.length > 0 || !!tx.attachmentUrl;
+
+  const isComplete = hasPayee && hasCategory && hasProperty && hasReceipt;
+
+  // Only show button if transaction is incomplete
+  if (isComplete) {
+    return null;
+  }
 
   function handleClick() {
     startTransition(async () => {
       try {
-        await markAsReviewed(id);
+        await markAsReviewed(tx.id);
         toast.success("Marked as reviewed.");
       } catch {
         toast.error("Something went wrong.");
@@ -184,7 +198,7 @@ export function NeedsReviewClient({ transactions, properties, allUnits }: Props)
                       >
                         <Pencil className="size-3" />
                       </Button>
-                      <MarkReviewedButton id={tx.id} />
+                      <MarkReviewedButton tx={tx} />
                     </div>
                   </TableCell>
                 </TableRow>

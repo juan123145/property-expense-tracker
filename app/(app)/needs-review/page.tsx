@@ -20,6 +20,7 @@ async function getNeedsReviewTransactions(userId: string) {
       needsReview: transactions.needsReview,
       propertyName: properties.name,
       unitName: units.name,
+      attachmentUrl: transactions.attachmentUrl,
     })
     .from(transactions)
     .leftJoin(properties, eq(transactions.propertyId, properties.id))
