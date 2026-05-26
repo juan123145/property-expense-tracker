@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
+import Link from "next/link";
 import { useTheme } from "next-themes";
 import { signOut } from "next-auth/react";
 import { toast } from "sonner";
-import { User, HardDrive, Trash2, AlertTriangle, Shield, X, Monitor, Sun, Moon, LogOut, Edit2 } from "lucide-react";
+import { User, HardDrive, Trash2, AlertTriangle, Shield, X, Monitor, Sun, Moon, LogOut, Edit2, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -274,6 +275,13 @@ export function SettingsClient({ user, username, phone, usedKb, quotaKb }: Props
           <p className="text-xs text-muted-foreground">
             Storage is used by receipts and attachments uploaded to transactions.
           </p>
+
+          <Link href="/settings/storage-breakdown" className="inline-block">
+            <button className="text-xs font-medium text-primary hover:underline flex items-center gap-1">
+              View detailed breakdown
+              <ChevronRight className="size-3" />
+            </button>
+          </Link>
         </div>
       </section>
 

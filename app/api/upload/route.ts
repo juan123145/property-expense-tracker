@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { properties, storageOwnerships } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { PDFDocument } from "pdf-lib";
+import sharp from "sharp";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -25,6 +26,26 @@ function validateMagicBytes(buf: Uint8Array, contentType: string): boolean {
 
 function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_").toLowerCase();
+}
+
+async function optimizeImage(input: Uint8Array, contentType: string): Promise<Uint8Array> {
+  try {
+    let pipeline = sharp(input).withMetadata();
+
+    if (contentType === "image/jpeg") {
+      pipeline = pipeline.jpeg({ quality: 85, progressive: true });
+    } else if (contentType === "image/png") {
+      pipeline = pipeline.png({ compressionLevel: 9 });
+    } else if (contentType === "image/webp") {
+      pipeline = pipeline.webp({ quality: 85 });
+    }
+
+    const optimized = await pipeline.toBuffer();
+    // Only use optimized version if it's actually smaller
+    return optimized.byteLength < input.byteLength ? optimized : input;
+  } catch {
+    return input;
+  }
 }
 
 async function optimizePdf(input: Uint8Array): Promise<Uint8Array> {
@@ -78,6 +99,8 @@ export async function POST(req: NextRequest) {
 
   if (contentType === "application/pdf") {
     buffer = await optimizePdf(buffer);
+  } else if (contentType.startsWith("image/")) {
+    buffer = await optimizeImage(buffer, contentType);
   }
 
   const url = await uploadToR2(key, buffer, contentType);
