@@ -2,7 +2,7 @@
 
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { properties, units, transactions } from "@/db/schema";
+import { properties, units, transactions, propertyMemberships } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -51,6 +51,16 @@ export async function createProperty(_prev: unknown, formData: FormData) {
     if (unitNames.length > 0) {
       await db.insert(units).values(unitNames.map((n) => ({ propertyId: property.id, name: n })));
     }
+
+    // Create owner membership record - CRITICAL: Owner must always have a membership record
+    await db.insert(propertyMemberships).values({
+      propertyId: property.id,
+      userId: user.id,
+      role: "OWNER",
+      status: "ACTIVE",
+      canShare: true,
+      acceptedAt: new Date(),
+    });
 
     revalidatePath("/properties");
     return { success: true, propertyId: property.id };

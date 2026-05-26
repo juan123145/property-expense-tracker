@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import { db } from "@/db";
-import { propertyInvitations, propertyMemberships } from "@/db/schema";
+import { propertyInvitations, propertyMemberships, properties } from "@/db/schema";
 import { eq, and, lt } from "drizzle-orm";
 
 /**
@@ -159,22 +159,38 @@ export async function acceptInvitation(
     throw new Error("This invitation has expired.");
   }
 
-  // Create the property membership
+  // Check if accepting user is already the owner - if so, preserve OWNER role
+  const [property] = await db
+    .select()
+    .from(propertyMemberships)
+    .where(
+      and(
+        eq(propertyMemberships.propertyId, invitation.propertyId),
+        eq(propertyMemberships.userId, acceptingUserId),
+        eq(propertyMemberships.role, "OWNER")
+      )
+    )
+    .limit(1);
+
+  // If user is already OWNER, keep them as OWNER (ignore invitation role)
+  const roleToAssign = property ? "OWNER" : invitation.role;
+
+  // Create or update the property membership
   const [membership] = await db
     .insert(propertyMemberships)
     .values({
       propertyId: invitation.propertyId,
       userId: acceptingUserId,
-      role: invitation.role,
-      canShare: invitation.canShare,
+      role: roleToAssign,
+      canShare: property ? true : invitation.canShare, // Owner always has canShare
       status: "ACTIVE",
       acceptedAt: now,
     })
     .onConflictDoUpdate({
       target: [propertyMemberships.propertyId, propertyMemberships.userId],
       set: {
-        role: invitation.role,
-        canShare: invitation.canShare,
+        role: roleToAssign, // Don't downgrade OWNER to EDITOR/VIEWER
+        canShare: property ? true : invitation.canShare,
         status: "ACTIVE",
         acceptedAt: now,
       },
