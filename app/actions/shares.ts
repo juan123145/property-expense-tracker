@@ -2,7 +2,7 @@
 
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { propertyMemberships } from "@/db/schema";
+import { propertyMemberships, propertyInvitations } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/lib/email";
@@ -281,5 +281,99 @@ export async function declineInvite(
     console.error("declineInvite:", err);
     const message = err instanceof Error ? err.message : "Failed to decline invitation.";
     return { error: message };
+  }
+}
+
+/**
+ * Cancel a pending invitation (owner only)
+ */
+export async function cancelInvitation(
+  invitationId: string
+): Promise<{ error?: string; success?: boolean }> {
+  const user = await requireAuth();
+
+  try {
+    // Get invitation details
+    const [invitation] = await db
+      .select({
+        id: propertyInvitations.id,
+        propertyId: propertyInvitations.propertyId,
+      })
+      .from(propertyInvitations)
+      .where(eq(propertyInvitations.id, invitationId))
+      .limit(1);
+
+    if (!invitation) {
+      return { error: "Invitation not found." };
+    }
+
+    // Check authorization (owner only)
+    const canManage = await canManageProperty(user.id, invitation.propertyId);
+    if (!canManage) {
+      return { error: "You are not authorized to cancel this invitation." };
+    }
+
+    // Cancel the invitation
+    await db
+      .update(propertyInvitations)
+      .set({ status: "CANCELED" })
+      .where(eq(propertyInvitations.id, invitationId));
+
+    // Invalidate caches
+    revalidatePath(`/properties/${invitation.propertyId}`);
+    revalidatePath(`/properties/${invitation.propertyId}/manage-access`);
+    revalidatePath("/properties");
+    return { success: true };
+  } catch (err) {
+    console.error("cancelInvitation:", err);
+    return { error: "Failed to cancel invitation. Please try again." };
+  }
+}
+
+/**
+ * Reinstate a revoked membership (owner only)
+ */
+export async function reinstateAccess(
+  membershipId: string,
+  role: "EDITOR" | "VIEWER"
+): Promise<{ error?: string; success?: boolean }> {
+  const user = await requireAuth();
+
+  try {
+    // Get membership
+    const [membership] = await db
+      .select({
+        id: propertyMemberships.id,
+        propertyId: propertyMemberships.propertyId,
+        status: propertyMemberships.status,
+      })
+      .from(propertyMemberships)
+      .where(eq(propertyMemberships.id, membershipId))
+      .limit(1);
+
+    if (!membership) {
+      return { error: "Membership not found." };
+    }
+
+    // Check authorization
+    const canManage = await canManageProperty(user.id, membership.propertyId);
+    if (!canManage) {
+      return { error: "You are not authorized to reinstate access." };
+    }
+
+    // Reinstate (set status to ACTIVE, clear revokedAt)
+    await db
+      .update(propertyMemberships)
+      .set({ status: "ACTIVE", revokedAt: null })
+      .where(eq(propertyMemberships.id, membershipId));
+
+    // Invalidate caches
+    revalidatePath(`/properties/${membership.propertyId}`);
+    revalidatePath(`/properties/${membership.propertyId}/manage-access`);
+    revalidatePath("/properties");
+    return { success: true };
+  } catch (err) {
+    console.error("reinstateAccess:", err);
+    return { error: "Failed to reinstate access. Please try again." };
   }
 }

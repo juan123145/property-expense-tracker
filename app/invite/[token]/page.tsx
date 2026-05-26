@@ -1,6 +1,6 @@
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { propertyShares, properties } from "@/db/schema";
+import { propertyInvitations, properties } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { acceptInvite } from "@/app/actions/shares";
@@ -14,38 +14,43 @@ export default async function InvitePage({ params }: Props) {
   const user = await requireAuth();
 
   // Look up the invite
-  const [share] = await db
+  const [invitation] = await db
     .select({
-      id: propertyShares.id,
-      status: propertyShares.status,
-      permission: propertyShares.permission,
-      invitedEmail: propertyShares.invitedEmail,
-      ownerId: propertyShares.ownerId,
-      propertyId: propertyShares.propertyId,
+      id: propertyInvitations.id,
+      status: propertyInvitations.status,
+      role: propertyInvitations.role,
+      invitedEmail: propertyInvitations.invitedEmail,
+      propertyId: propertyInvitations.propertyId,
       propertyName: properties.name,
+      expiresAt: propertyInvitations.expiresAt,
     })
-    .from(propertyShares)
-    .innerJoin(properties, eq(propertyShares.propertyId, properties.id))
-    .where(eq(propertyShares.inviteToken, token))
+    .from(propertyInvitations)
+    .innerJoin(properties, eq(propertyInvitations.propertyId, properties.id))
+    .where(eq(propertyInvitations.token, token))
     .limit(1);
 
-  if (!share) {
+  if (!invitation) {
     return <InviteResult icon="error" title="Invitation not found" message="This link is invalid or has expired." />;
   }
 
-  if (share.status === "accepted") {
-    redirect(`/properties/${share.propertyId}`);
+  // Check if expired
+  if (invitation.status === "EXPIRED") {
+    return <InviteResult icon="error" title="Invitation expired" message="This invitation has expired. Please ask the property owner to send you a new one." />;
   }
 
-  if (share.status === "revoked") {
-    return <InviteResult icon="error" title="Invitation revoked" message="This invitation has been revoked by the property owner." />;
+  if (invitation.status === "ACCEPTED") {
+    redirect(`/properties/${invitation.propertyId}`);
   }
 
-  if (share.ownerId === user.id) {
-    return <InviteResult icon="error" title="This is your own property" message="You cannot accept an invitation to your own property." />;
+  if (invitation.status === "DECLINED") {
+    return <InviteResult icon="error" title="Invitation declined" message="You previously declined this invitation." />;
   }
 
-  // Auto-accept
+  if (invitation.status === "CANCELED") {
+    return <InviteResult icon="error" title="Invitation canceled" message="This invitation has been canceled by the property owner." />;
+  }
+
+  // Auto-accept the PENDING invitation
   const result = await acceptInvite(token);
   if (result.error) {
     return <InviteResult icon="error" title="Could not accept invitation" message={result.error} />;

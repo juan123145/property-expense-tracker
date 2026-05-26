@@ -51,6 +51,7 @@ async function getPropertyInvitations(propertyId: string) {
       status: propertyInvitations.status,
       createdAt: propertyInvitations.createdAt,
       expiresAt: propertyInvitations.expiresAt,
+      token: propertyInvitations.token,
     })
     .from(propertyInvitations)
     .where(eq(propertyInvitations.propertyId, propertyId));

@@ -4,6 +4,8 @@ import { useState } from "react";
 import {
   revokeAccess,
   updateMembershipRole,
+  cancelInvitation,
+  reinstateAccess,
 } from "@/app/actions/shares";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,8 +33,12 @@ import {
   CheckCircle2,
   Shield,
   AlertCircle,
+  Copy,
+  RotateCcw,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://property-expense-tracker.vercel.app";
 
 type Member = {
   id: string;
@@ -54,6 +60,7 @@ type Invitation = {
   status: string;
   createdAt: Date | null;
   expiresAt: Date;
+  token?: string;
 };
 
 type Props = {
@@ -69,6 +76,8 @@ export function ManageAccessClientV2({
 }: Props) {
   const [revoking, setRevoking] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [canceling, setCanceling] = useState<string | null>(null);
+  const [reinstating, setReinstating] = useState<string | null>(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
 
   const activeMembers = members.filter((m) => m.status === "ACTIVE");
@@ -111,6 +120,40 @@ export function ManageAccessClientV2({
     } finally {
       setUpdating(null);
     }
+  };
+
+  const handleCancelInvitation = async (invitationId: string) => {
+    setCanceling(invitationId);
+    try {
+      const result = await cancelInvitation(invitationId);
+      if (result.error) {
+        alert(result.error);
+      }
+    } catch (err) {
+      alert("Failed to cancel invitation");
+    } finally {
+      setCanceling(null);
+    }
+  };
+
+  const handleReinstateAccess = async (membershipId: string, role: string) => {
+    setReinstating(membershipId);
+    try {
+      const result = await reinstateAccess(membershipId, role as "EDITOR" | "VIEWER");
+      if (result.error) {
+        alert(result.error);
+      }
+    } catch (err) {
+      alert("Failed to reinstate access");
+    } finally {
+      setReinstating(null);
+    }
+  };
+
+  const copyInviteLink = (token: string) => {
+    const url = `${APP_URL}/invite/${token}`;
+    navigator.clipboard.writeText(url);
+    alert("Invitation link copied to clipboard!");
   };
 
   return (
@@ -275,7 +318,7 @@ export function ManageAccessClientV2({
                 key={invite.id}
                 className="flex items-center justify-between rounded-lg border bg-amber-50 dark:bg-amber-950/20 p-4"
               >
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <p className="font-medium">{invite.email}</p>
                   <div className="flex items-center gap-2 mt-1.5 text-xs">
                     <Badge variant="secondary">{invite.role}</Badge>
@@ -291,13 +334,34 @@ export function ManageAccessClientV2({
                     )}
                   </p>
                 </div>
-                <div className="text-right shrink-0 ml-4">
-                  <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
-                    Expires
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(invite.expiresAt, { addSuffix: true })}
-                  </p>
+                <div className="flex items-center gap-2 shrink-0 ml-4">
+                  <div className="text-right">
+                    <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+                      Expires
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(invite.expiresAt, { addSuffix: true })}
+                    </p>
+                  </div>
+
+                  {invite.token && (
+                    <button
+                      onClick={() => copyInviteLink(invite.token!)}
+                      className="text-muted-foreground hover:bg-amber-100 dark:hover:bg-amber-900/30 p-2 rounded transition-colors"
+                      title="Copy invitation link"
+                    >
+                      <Copy className="size-4" />
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => handleCancelInvitation(invite.id)}
+                    disabled={canceling === invite.id}
+                    className="text-destructive hover:bg-destructive/10 p-2 rounded transition-colors disabled:opacity-50"
+                    title="Cancel invitation"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
                 </div>
               </div>
             ))}
@@ -326,7 +390,7 @@ export function ManageAccessClientV2({
                     key={member.id}
                     className="flex items-center justify-between rounded-lg border bg-red-50 dark:bg-red-950/20 p-3 text-sm"
                   >
-                    <div>
+                    <div className="flex-1">
                       <p className="font-medium">{member.name || member.email}</p>
                       {member.revokedAt && (
                         <p className="text-xs text-muted-foreground">
@@ -334,7 +398,17 @@ export function ManageAccessClientV2({
                         </p>
                       )}
                     </div>
-                    <Badge variant="destructive">{member.role}</Badge>
+                    <div className="flex items-center gap-2 shrink-0 ml-4">
+                      <Badge variant="destructive">{member.role}</Badge>
+                      <button
+                        onClick={() => handleReinstateAccess(member.id, member.role)}
+                        disabled={reinstating === member.id}
+                        className="text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 p-2 rounded transition-colors disabled:opacity-50"
+                        title="Reinstate access"
+                      >
+                        <RotateCcw className="size-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
