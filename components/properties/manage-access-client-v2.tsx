@@ -157,7 +157,7 @@ export function ManageAccessClientV2({
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <SharePropertyModal
         propertyId={propertyId}
         propertyName="Property"
@@ -166,10 +166,10 @@ export function ManageAccessClientV2({
       />
 
       {/* Add Collaborator Button */}
-      <div className="flex justify-end">
+      <div className="flex justify-end pr-4">
         <Button
           onClick={() => setShareModalOpen(true)}
-          className="gap-2 bg-primary hover:bg-primary/90"
+          className="gap-2 bg-primary hover:bg-primary/90 shadow-md hover:shadow-lg transition-shadow"
           size="lg"
         >
           <Plus className="size-5" />
@@ -178,14 +178,16 @@ export function ManageAccessClientV2({
       </div>
 
       {/* Active Members */}
-      <section className="space-y-5 pt-4">
-        <div className="space-y-2 px-2">
+      <section className="space-y-6">
+        <div className="space-y-2">
           <div className="flex items-center gap-3">
-            <Users2 className="size-5 text-primary" />
-            <h2 className="text-xl font-bold">Active Members</h2>
-            <span className="text-sm text-muted-foreground font-medium">({activeMembers.length})</span>
+            <Users2 className="size-6 text-primary" />
+            <div>
+              <h2 className="text-2xl font-bold">Active Members</h2>
+              <span className="text-sm text-muted-foreground ml-0.5">({activeMembers.length})</span>
+            </div>
           </div>
-          <p className="text-sm text-muted-foreground">Manage who can access and collaborate</p>
+          <p className="text-base text-muted-foreground ml-9">Manage who has access to this property and their permissions</p>
         </div>
 
         {activeMembers.length === 0 ? (
@@ -197,48 +199,49 @@ export function ManageAccessClientV2({
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {activeMembers.map((member) => (
               <div
                 key={member.id}
-                className="flex items-center justify-between rounded-lg border bg-card p-4 hover:shadow-sm transition-shadow"
+                className="rounded-lg border bg-gradient-to-br from-card to-card/50 p-5 hover:shadow-md transition-all hover:border-primary/30"
               >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary shrink-0">
-                      {(member.name || member.email)?.[0]?.toUpperCase() || "?"}
+                <div className="flex items-start justify-between gap-6">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-10 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary shrink-0 border border-primary/20">
+                        {(member.name || member.email)?.[0]?.toUpperCase() || "?"}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold truncate text-base">{member.name || member.email}</p>
+                        {member.name && (
+                          <p className="text-sm text-muted-foreground truncate">
+                            {member.email}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-medium truncate">{member.name || member.email}</p>
-                      {member.name && (
-                        <p className="text-sm text-muted-foreground truncate">
-                          {member.email}
-                        </p>
-                      )}
-                    </div>
+                    {member.joinedAt && (
+                      <p className="text-xs text-muted-foreground mt-3 ml-13" suppressHydrationWarning>
+                        Joined {formatDistanceToNow(member.joinedAt, { addSuffix: true })}
+                      </p>
+                    )}
                   </div>
-                  {member.joinedAt && (
-                    <p className="text-xs text-muted-foreground mt-2" suppressHydrationWarning>
-                      Joined {formatDistanceToNow(member.joinedAt, { addSuffix: true })}
-                    </p>
-                  )}
-                </div>
 
-                <div className="flex items-center gap-3 shrink-0 ml-4">
-                  {member.role === "OWNER" ? (
-                    // Owner: show badge, no controls
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge variant="default" className="bg-green-600">
-                        Owner
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">Full access & control</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-6 shrink-0">
+                    <div className="flex flex-col gap-4 items-end">
+                    {member.role === "OWNER" ? (
+                      // Owner: show badge, no controls
+                      <div className="flex flex-col items-end gap-2">
+                        <Badge variant="default" className="bg-green-600 text-white px-3 py-1 text-xs font-semibold">
+                          Owner
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">Full access & control</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-4 w-full max-w-xs">
                         {member.role && (
-                          <div className="flex flex-col gap-1">
-                            <label className="text-xs font-medium text-muted-foreground">Access Level</label>
+                          <div className="flex flex-col gap-2">
+                            <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Access Level</label>
                             <Select
                               value={member.role}
                               onValueChange={(role) =>
@@ -250,24 +253,22 @@ export function ManageAccessClientV2({
                               }
                               disabled={updating === member.id}
                             >
-                              <SelectTrigger className="w-32 h-9">
+                              <SelectTrigger className="w-full h-10 bg-muted/50 border border-primary/20">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="EDITOR">
-                                  <span>Editor — Can edit</span>
+                                  <span className="font-medium">Editor</span> — Can edit & view
                                 </SelectItem>
                                 <SelectItem value="VIEWER">
-                                  <span>Viewer — Read only</span>
+                                  <span className="font-medium">Viewer</span> — Read only access
                                 </SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                         )}
-                      </div>
 
-                      <label className="flex flex-col items-start gap-1 cursor-pointer">
-                        <div className="flex items-center gap-2">
+                        <label className="flex items-start gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/50 transition-colors border border-transparent hover:border-primary/20">
                           <input
                             type="checkbox"
                             checked={member.canShare ?? false}
@@ -279,43 +280,46 @@ export function ManageAccessClientV2({
                               )
                             }
                             disabled={updating === member.id}
-                            className="rounded border"
+                            className="rounded border-2 mt-0.5 cursor-pointer"
                           />
-                          <span className="text-xs font-medium text-muted-foreground">Can Share</span>
-                        </div>
-                        <span className="text-xs text-muted-foreground ml-6">Allow sharing with others</span>
-                      </label>
-                    </div>
-                  )}
-
-                  {member.role !== "OWNER" && (
-                    <AlertDialog>
-                      <button
-                        onClick={() => handleRevoke(member.id)}
-                        disabled={revoking === member.id}
-                        className="text-destructive hover:bg-destructive/10 p-2 rounded transition-colors disabled:opacity-50"
-                        title="Revoke access"
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
-                    <AlertDialogContent>
-                      <AlertDialogTitle>Revoke Access</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Are you sure? {member.name || member.email} will immediately lose
-                        access to this property.
-                      </AlertDialogDescription>
-                      <div className="flex justify-end gap-2">
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleRevoke(member.id)}
-                          className="bg-destructive"
-                        >
-                          Revoke
-                        </AlertDialogAction>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs font-semibold text-foreground">Can Share</span>
+                            <span className="text-xs text-muted-foreground">Allow this member to invite others</span>
+                          </div>
+                        </label>
                       </div>
-                    </AlertDialogContent>
-                    </AlertDialog>
-                  )}
+                    )}
+                    </div>
+
+                    {member.role !== "OWNER" && (
+                      <AlertDialog>
+                        <button
+                          onClick={() => handleRevoke(member.id)}
+                          disabled={revoking === member.id}
+                          className="text-destructive hover:bg-destructive/10 p-2 rounded transition-colors disabled:opacity-50"
+                          title="Revoke access"
+                        >
+                          <Trash2 className="size-5" />
+                        </button>
+                        <AlertDialogContent>
+                          <AlertDialogTitle>Revoke Access</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure? {member.name || member.email} will immediately lose
+                            access to this property.
+                          </AlertDialogDescription>
+                          <div className="flex justify-end gap-2">
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleRevoke(member.id)}
+                              className="bg-destructive"
+                            >
+                              Revoke
+                            </AlertDialogAction>
+                          </div>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

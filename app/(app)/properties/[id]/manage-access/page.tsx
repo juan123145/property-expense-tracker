@@ -76,9 +76,9 @@ export default async function ManageAccessPage({ params }: PageProps) {
   ]);
 
   return (
-    <div className="space-y-8 pb-8">
+    <div className="space-y-8 pb-16 px-6 md:px-8">
       {/* Header with back button */}
-      <div className="flex items-center gap-4 pt-4">
+      <div className="flex items-center gap-4 pt-6">
         <Link href={`/properties/${id}`}>
           <Button
             variant="outline"
@@ -91,10 +91,12 @@ export default async function ManageAccessPage({ params }: PageProps) {
         </Link>
       </div>
 
-      {/* Page title */}
-      <div className="space-y-2 px-2">
-        <h1 className="text-3xl font-bold tracking-tight">Manage Access</h1>
-        <p className="text-muted-foreground">Control who can access and collaborate on this property</p>
+      {/* Page title and description */}
+      <div className="space-y-3 border-b pb-6">
+        <div>
+          <h1 className="text-4xl font-bold tracking-tight">Manage Access</h1>
+          <p className="text-lg text-muted-foreground mt-2">Control who can access and collaborate on this property</p>
+        </div>
       </div>
 
       <ManageAccessClientV2

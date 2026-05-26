@@ -34,10 +34,13 @@ export function AppSidebar({ needsReviewCount, isAdmin }: Props) {
       "hidden md:flex flex-col shrink-0 border-r bg-card h-screen sticky top-0 transition-all duration-300 ease-in-out",
       isMounted && isCollapsed ? "w-20" : "w-60"
     )}>
-      <div className={cn(
-        "flex items-center justify-between px-4 py-4 border-b transition-all duration-300",
-        isMounted && isCollapsed && "flex-col gap-2"
-      )}>
+      <div
+        className={cn(
+          "flex items-center justify-between px-4 py-4 border-b transition-all duration-300",
+          isMounted && isCollapsed && "flex-col gap-2"
+        )}
+        suppressHydrationWarning
+      >
         {!isMounted || !isCollapsed ? <AppLogo /> : null}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
@@ -46,6 +49,7 @@ export function AppSidebar({ needsReviewCount, isAdmin }: Props) {
             isMounted && isCollapsed && "ml-0"
           )}
           title={isCollapsed ? "Expand" : "Collapse"}
+          suppressHydrationWarning
         >
           {isMounted && isCollapsed ? (
             <ChevronRight className="size-4" />
