@@ -23,14 +23,12 @@ export function AppLogo({ className, collapsed = false }: { className?: string; 
   return (
     <Link href="/dashboard" className={cn("flex items-center gap-2.5 hover:opacity-80 transition-opacity", className)}>
       <LogoMark />
-      {!collapsed && (
-        <div className="flex flex-col leading-none">
-          <span className="font-bold text-sm tracking-tight text-foreground">PropLedger</span>
-          <span className="text-[9px] font-medium text-muted-foreground tracking-widest uppercase mt-0.5">
-            Property Finance
-          </span>
-        </div>
-      )}
+      <div className={cn("flex flex-col leading-none", collapsed && "hidden")}>
+        <span className="font-bold text-sm tracking-tight text-foreground">PropLedger</span>
+        <span className="text-[9px] font-medium text-muted-foreground tracking-widest uppercase mt-0.5">
+          Property Finance
+        </span>
+      </div>
     </Link>
   );
 }
