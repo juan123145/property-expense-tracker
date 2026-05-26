@@ -128,7 +128,10 @@ export async function shareProperty(
       // Non-fatal if email fails
     }
 
+    // Invalidate all affected caches
     revalidatePath(`/properties/${propertyId}`);
+    revalidatePath(`/properties/${propertyId}/manage-access`);
+    revalidatePath("/properties");
     return { success: true, inviteUrl };
   } catch (err) {
     console.error("shareProperty unexpected error:", {
@@ -176,6 +179,9 @@ export async function revokeAccess(
       .set({ status: "REVOKED", revokedAt: new Date() })
       .where(eq(propertyMemberships.id, membershipId));
 
+    // Invalidate all affected caches
+    revalidatePath(`/properties/${membership.propertyId}`);
+    revalidatePath(`/properties/${membership.propertyId}/manage-access`);
     revalidatePath("/properties");
     return { success: true };
   } catch (err) {
@@ -229,6 +235,9 @@ export async function updateMembershipRole(
       .set({ role: newRole, canShare })
       .where(eq(propertyMemberships.id, membershipId));
 
+    // Invalidate all affected caches
+    revalidatePath(`/properties/${membership.propertyId}`);
+    revalidatePath(`/properties/${membership.propertyId}/manage-access`);
     revalidatePath("/properties");
     return { success: true };
   } catch (err) {
