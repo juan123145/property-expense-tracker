@@ -342,13 +342,13 @@ export function AdminClient({ users, currentUserId }: Props) {
                 </p>
               ) : (
                 sortedFiles.map((file) => (
-                  <button
+                  <div
                     key={file.id}
                     onClick={() => setPreviewFile(file)}
-                    className="w-full flex items-center justify-between gap-2 p-3 rounded-md bg-muted/50 hover:bg-muted transition-colors group text-left"
+                    className="w-full flex items-center justify-between gap-2 p-3 rounded-md bg-muted/50 hover:bg-muted transition-colors group text-left cursor-pointer"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate cursor-pointer hover:underline" title={file.fileName ?? "unnamed"}>
+                      <p className="text-xs font-medium truncate hover:underline" title={file.fileName ?? "unnamed"}>
                         {file.fileName || "unnamed"}
                       </p>
                       <div className="flex gap-2 text-[11px] text-muted-foreground mt-1">
@@ -386,7 +386,7 @@ export function AdminClient({ users, currentUserId }: Props) {
                         )}
                       </button>
                     </div>
-                  </button>
+                  </div>
                 ))
               )}
             </div>
@@ -396,7 +396,7 @@ export function AdminClient({ users, currentUserId }: Props) {
 
       {/* File preview modal */}
       <Dialog open={!!previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }}>
-        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+        <DialogContent className="w-full max-w-4xl max-h-[90vh] md:max-h-[85vh] flex flex-col m-2 md:m-0 rounded-lg md:rounded-xl">
           <DialogHeader className="border-b">
             <DialogTitle className="text-base">
               {previewFile?.fileName || "File"}
