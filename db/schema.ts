@@ -210,3 +210,30 @@ export const storageOwnerships = pgTable("storage_ownerships", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });
+
+// Enum for soft delete queue status
+export const deleteStatusEnum = pgEnum("delete_status", [
+  "SOFT_DELETED",
+  "SCHEDULED_DELETE",
+  "PERMANENTLY_DELETED",
+  "DELETE_FAILED",
+]);
+
+export const softDeleteQueue = pgTable("soft_delete_queue", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  transactionId: uuid("transaction_id")
+    .notNull()
+    .references(() => transactions.id, { onDelete: "cascade" }),
+  deletedByUserId: text("deleted_by_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  status: deleteStatusEnum("status").notNull().default("SOFT_DELETED"),
+  scheduledPermanentDeleteAt: timestamp("scheduled_permanent_delete_at", {
+    withTimezone: true,
+  }).notNull(),
+  attemptedDeleteAt: timestamp("attempted_delete_at", { withTimezone: true }),
+  permanentDeleteAt: timestamp("permanent_delete_at", { withTimezone: true }),
+  errorMessage: text("error_message"),
+  retryCount: integer("retry_count").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
