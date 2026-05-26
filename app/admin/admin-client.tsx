@@ -396,7 +396,7 @@ export function AdminClient({ users, currentUserId }: Props) {
 
       {/* File preview modal */}
       <Dialog open={!!previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }}>
-        <DialogContent className="w-full max-w-4xl max-h-[90vh] md:max-h-[85vh] flex flex-col m-2 md:m-0 rounded-lg md:rounded-xl">
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
           <DialogHeader className="border-b">
             <DialogTitle className="text-base">
               {previewFile?.fileName || "File"}
@@ -407,7 +407,7 @@ export function AdminClient({ users, currentUserId }: Props) {
           </DialogHeader>
 
           {/* Preview Content */}
-          <div className="flex-1 overflow-auto flex items-center justify-center bg-muted/30 p-4 rounded-md">
+          <div className="flex-1 overflow-auto flex items-center justify-center bg-muted/30 p-2 rounded-md min-h-[500px]">
             {previewFile && isPreviewable(previewFile.fileName) ? (
               previewFile.fileName?.toLowerCase().endsWith('.pdf') ? (
                 <iframe
@@ -420,7 +420,7 @@ export function AdminClient({ users, currentUserId }: Props) {
                 <img
                   src={previewFile.url}
                   alt={previewFile.fileName ?? "File preview"}
-                  className="max-w-full max-h-full object-contain rounded-md"
+                  className="w-full h-full object-contain rounded-md"
                 />
               )
             ) : previewFile ? (
