@@ -48,8 +48,9 @@ export async function completeOnboarding(formData: FormData): Promise<{ error?: 
         },
       });
   } catch (err: any) {
-    if (err.message?.includes("unique")) {
-      return { error: "Username already taken" };
+    const errorMsg = err.message?.toLowerCase() || err.toString().toLowerCase();
+    if (errorMsg.includes("unique") || errorMsg.includes("username")) {
+      return { error: "Username already taken. Please choose another one." };
     }
     console.error("completeOnboarding:", err);
     return { error: "Failed to save profile" };
