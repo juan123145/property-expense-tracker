@@ -292,7 +292,8 @@ export async function acceptInvite(
 
   try {
     const { propertyId } = await acceptInvitation(token, user.id);
-    revalidatePath("/properties");
+    // Don't call revalidatePath here - it's called during render which is not allowed
+    // The redirect to /properties will fetch fresh data automatically
     return { propertyId };
   } catch (err) {
     console.error("acceptInvite:", err);
@@ -311,7 +312,8 @@ export async function declineInvite(
 
   try {
     await declineInvitation(token, user.id);
-    revalidatePath("/properties");
+    // Don't call revalidatePath here - it's called during render which is not allowed
+    // The redirect to /dashboard will fetch fresh data automatically
     return { success: true };
   } catch (err) {
     console.error("declineInvite:", err);
