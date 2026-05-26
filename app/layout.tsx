@@ -44,7 +44,8 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="pet-theme" forcedTheme={undefined} disableTransitionOnChange={false}>
+        {/* next-themes injects a script tag to prevent theme flashing, which is expected */}
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="pet-theme">
           {children}
           <Toaster richColors position="top-right" />
           <ServiceWorkerRegistrar />
