@@ -1,15 +1,30 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Trash2, Loader2, Shield, Users, Building2, Receipt, HardDrive, AlertTriangle } from "lucide-react";
+import { Trash2, Loader2, Shield, Users, Building2, Receipt, HardDrive, AlertTriangle, ChevronDown } from "lucide-react";
 import { adminDeleteUser } from "./actions";
 import { cn } from "@/lib/utils";
 
+type FileRow = {
+  userId: string;
+  fileName: string | null;
+  sizeKb: number | null;
+  url: string;
+  txDate: Date;
+  txPayee: string | null;
+  txAmount: string;
+};
+
 type UserRow = {
   userId: string;
+  email: string | null;
+  name: string | null;
+  image: string | null;
   propertyCount: number;
   transactionCount: number;
+  fileCount: number;
   storageKb: number;
+  files: FileRow[];
 };
 
 type Props = {
@@ -30,6 +45,7 @@ function truncateId(id: string): string {
 export function AdminClient({ users, currentUserId }: Props) {
   const [rows, setRows] = useState(users);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [deleting, startDelete] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -49,6 +65,7 @@ export function AdminClient({ users, currentUserId }: Props) {
   const totalUsers = rows.length;
   const totalProps = rows.reduce((s, r) => s + r.propertyCount, 0);
   const totalTx = rows.reduce((s, r) => s + r.transactionCount, 0);
+  const totalFiles = rows.reduce((s, r) => s + r.fileCount, 0);
   const totalStorage = rows.reduce((s, r) => s + r.storageKb, 0);
 
   return (
@@ -62,11 +79,12 @@ export function AdminClient({ users, currentUserId }: Props) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {[
           { label: "Users", value: totalUsers, icon: Users },
           { label: "Properties", value: totalProps, icon: Building2 },
           { label: "Transactions", value: totalTx, icon: Receipt },
+          { label: "Files", value: totalFiles, icon: HardDrive },
           { label: "Storage", value: fmtBytes(totalStorage), icon: HardDrive },
         ].map(({ label, value, icon: Icon }) => (
           <div key={label} className="rounded-xl border bg-card p-4 space-y-1">
@@ -95,43 +113,116 @@ export function AdminClient({ users, currentUserId }: Props) {
           <p className="p-6 text-sm text-center text-muted-foreground">No users with properties found.</p>
         ) : (
           <div className="divide-y">
-            {rows.map((row) => (
-              <div key={row.userId} className={cn("flex items-center gap-4 px-4 py-3", row.userId === currentUserId && "bg-primary/5")}>
-                <div className="flex-1 min-w-0 space-y-0.5">
-                  <p className="text-xs font-mono text-muted-foreground truncate">{truncateId(row.userId)}</p>
-                  {row.userId === currentUserId && <span className="text-[10px] font-semibold text-primary">YOU</span>}
-                </div>
-                <div className="flex gap-4 text-sm shrink-0">
-                  <span className="text-muted-foreground text-xs">{row.propertyCount} props</span>
-                  <span className="text-muted-foreground text-xs">{row.transactionCount} txs</span>
-                  <span className="text-muted-foreground text-xs">{fmtBytes(row.storageKb)}</span>
-                </div>
-                {row.userId !== currentUserId && (
-                  confirmId === row.userId ? (
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs text-destructive font-medium">Delete all data?</span>
-                      <button
-                        onClick={() => handleDelete(row.userId)}
-                        disabled={deleting}
-                        className="flex items-center gap-1 rounded-md bg-destructive px-2 py-1 text-xs font-medium text-white hover:bg-destructive/90 disabled:opacity-50"
-                      >
-                        {deleting ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
-                        Confirm
-                      </button>
-                      <button onClick={() => setConfirmId(null)} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
+            {rows.map((row) => {
+              const isExpanded = expandedId === row.userId;
+              const profile = row.name || row.email ? `${row.name || ""} ${row.email ? `(${row.email})` : ""}`.trim() : null;
+              const largestFile = row.files[0];
+
+              return (
+                <div key={row.userId}>
+                  <div className={cn("flex items-center gap-3 px-4 py-3", row.userId === currentUserId && "bg-primary/5")}>
+                    {/* Avatar + name/email */}
+                    <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                      <div className="size-9 rounded-full shrink-0 bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
+                        {row.image ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={row.image} alt={row.name ?? ""} className="size-9 rounded-full" />
+                        ) : (
+                          (row.name?.[0] || row.email?.[0] || "?").toUpperCase()
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        {profile ? (
+                          <>
+                            <p className="text-sm font-medium truncate">{row.name || row.email}</p>
+                            {row.email && row.name && <p className="text-xs text-muted-foreground truncate">{row.email}</p>}
+                          </>
+                        ) : (
+                          <p className="text-xs font-mono text-muted-foreground truncate">{truncateId(row.userId)}</p>
+                        )}
+                        {row.userId === currentUserId && <span className="text-[10px] font-semibold text-primary">YOU</span>}
+                      </div>
                     </div>
-                  ) : (
-                    <button
-                      onClick={() => setConfirmId(row.userId)}
-                      className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      title="Delete user account"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  )
-                )}
-              </div>
-            ))}
+
+                    {/* Stats */}
+                    <div className="flex gap-3 text-xs shrink-0 text-muted-foreground">
+                      <span>{row.propertyCount} props</span>
+                      <span>{row.transactionCount} txs</span>
+                      <span>{row.fileCount} files</span>
+                      <span>{fmtBytes(row.storageKb)}</span>
+                    </div>
+
+                    {/* Largest file chip */}
+                    {largestFile && (
+                      <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/60 text-[11px] shrink-0">
+                        <span>Largest: {largestFile.fileName ? largestFile.fileName.slice(0, 20) : "file"}{(largestFile.fileName?.length ?? 0) > 20 ? "…" : ""}</span>
+                      </div>
+                    )}
+
+                    {/* Expand button */}
+                    {row.fileCount > 0 && (
+                      <button
+                        onClick={() => setExpandedId(isExpanded ? null : row.userId)}
+                        className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                      >
+                        <ChevronDown className={cn("size-4 transition-transform", isExpanded && "rotate-180")} />
+                      </button>
+                    )}
+
+                    {/* Delete button */}
+                    {row.userId !== currentUserId && (
+                      confirmId === row.userId ? (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs text-destructive font-medium">Delete?</span>
+                          <button
+                            onClick={() => handleDelete(row.userId)}
+                            disabled={deleting}
+                            className="flex items-center gap-1 rounded-md bg-destructive px-2 py-1 text-xs font-medium text-white hover:bg-destructive/90 disabled:opacity-50"
+                          >
+                            {deleting ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
+                          </button>
+                          <button onClick={() => setConfirmId(null)} className="text-xs text-muted-foreground hover:text-foreground">No</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmId(row.userId)}
+                          className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                          title="Delete user account"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      )
+                    )}
+                  </div>
+
+                  {/* Expanded file list */}
+                  {isExpanded && row.files.length > 0 && (
+                    <div className="border-t bg-muted/30 px-4 py-3">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-xs font-medium text-muted-foreground border-b">
+                            <th className="text-left py-2">File</th>
+                            <th className="text-right py-2">Size</th>
+                            <th className="text-left py-2">Date</th>
+                            <th className="text-left py-2">Payee</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {row.files.map((file, idx) => (
+                            <tr key={idx} className="border-t text-xs">
+                              <td className="py-2 truncate">{file.fileName || "unnamed"}</td>
+                              <td className="text-right py-2">{fmtBytes(file.sizeKb ?? 0)}</td>
+                              <td className="py-2 text-muted-foreground">{new Date(file.txDate).toLocaleDateString()}</td>
+                              <td className="py-2 text-muted-foreground truncate">{file.txPayee || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

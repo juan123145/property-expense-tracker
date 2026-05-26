@@ -15,6 +15,13 @@
       "when": 1748178000000,
       "tag": "0001_transaction_attachments",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1748264400000,
+      "tag": "0002_users",
+      "breakpoints": true
     }
   ]
 }

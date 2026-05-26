@@ -1,6 +1,6 @@
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { transactions, properties, units } from "@/db/schema";
+import { transactions, properties, units, users } from "@/db/schema";
 import { eq, and, count } from "drizzle-orm";
 import { AppSidebar, MobileBottomNav } from "@/components/layout/app-sidebar";
 import { AppLogo } from "@/components/brand/logo";
@@ -27,6 +27,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ]);
 
   const needsReviewCount = nrRow?.value ?? 0;
+
+  // Non-blocking: upsert user profile so admin panel shows friendly names
+  db.insert(users)
+    .values({ id: user.id, email: user.email ?? null, name: user.name ?? null, image: user.image ?? null })
+    .onConflictDoUpdate({
+      target: users.id,
+      set: { email: user.email ?? null, name: user.name ?? null, image: user.image ?? null, lastSeenAt: new Date() },
+    })
+    .catch(() => {});
 
   return (
     <div className="flex min-h-screen">

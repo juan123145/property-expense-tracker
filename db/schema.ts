@@ -79,3 +79,12 @@ export const transactionAttachments = pgTable("transaction_attachments", {
   position: integer("position").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
+
+export const users = pgTable("users", {
+  id: text("id").primaryKey(),
+  email: text("email"),
+  name: text("name"),
+  image: text("image"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow(),
+});
