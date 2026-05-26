@@ -94,50 +94,57 @@ function parseDate(text: string): string | null {
 function parseAmount(text: string): string | null {
   const lines = text.split("\n");
 
-  // Keywords that indicate the total amount to pay
-  const totalRe =
-    /\b(invoice\s+amount|invoice\s+total|amount\s+charged|amount\s+paid|receipt\s+total|subtotal|total\s+amount|total\s+due|grand\s+total|total)\b/i;
-  // Keywords whose amount we should NOT use (zero-balance lines, refunds, discounts)
-  const skipRe = /\b(amount\s+due|balance\s+due|discount|refund|saving|payment[s]?)\b/i;
-
-  const amountRe = /\$?\s*([\d,]+\.\d{2})/g;
-
   function amountsOnLine(line: string): number[] {
     const nums: number[] = [];
     let m: RegExpMatchArray | null;
-    const copy = new RegExp(amountRe.source, amountRe.flags);
-    while ((m = copy.exec(line)) !== null) {
+    const re = /\$?\s*([\d,]+\.\d{2})/g;
+    while ((m = re.exec(line)) !== null) {
       const n = parseFloat(m[1].replace(/,/g, ""));
       if (n > 0.01) nums.push(n);
     }
     return nums;
   }
 
-  // Pass 1: preferred total keywords, same line or the very next line
+  function bestFromLineOrNext(i: number, minVal = 0.01): number | null {
+    const same = amountsOnLine(lines[i]).filter((n) => n > minVal);
+    if (same.length > 0) return Math.max(...same);
+    const next = lines[i + 1] ? amountsOnLine(lines[i + 1]).filter((n) => n > minVal) : [];
+    if (next.length > 0) return Math.max(...next);
+    return null;
+  }
+
+  // Lines that are always noise — never the final amount
+  const alwaysSkip =
+    /\b(subtotal|sub\s+total|sales\s+tax|discount|refund|saving|payment[s]?|tip)\b/i;
+
+  // Pass 1: strong named-total keywords (highest priority)
+  // "grand total", "invoice total/amount", "total amount", "total due", "amount charged/paid", "receipt total"
+  const strongRe =
+    /\b(grand\s+total|invoice\s+total|invoice\s+amount|total\s+amount|total\s+due|amount\s+charged|amount\s+paid|receipt\s+total)\b/i;
+  for (let i = 0; i < lines.length; i++) {
+    if (!strongRe.test(lines[i]) || alwaysSkip.test(lines[i])) continue;
+    const v = bestFromLineOrNext(i);
+    if (v !== null) return v.toFixed(2);
+  }
+
+  // Pass 2: bare "TOTAL" line — must NOT also contain a subtotal/tax qualifier
+  // e.g. "TOTAL  $61.50" matches; "SUBTOTAL  57.88" and "SALES TAX  3.62" do not
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (!totalRe.test(line) || skipRe.test(line)) continue;
-
-    // check same line first
-    const same = amountsOnLine(line);
-    if (same.length > 0) return Math.max(...same).toFixed(2);
-
-    // then check the next line (common in table layouts)
-    const next = lines[i + 1] ? amountsOnLine(lines[i + 1]) : [];
-    if (next.length > 0) return Math.max(...next).toFixed(2);
+    if (!/\btotal\b/i.test(line)) continue;
+    if (/\b(sub|subtotal|tax|discount)\b/i.test(line)) continue;
+    const v = bestFromLineOrNext(i);
+    if (v !== null) return v.toFixed(2);
   }
 
-  // Pass 2: "Amount Due" or "Balance Due" — only accept if non-zero
-  const balanceRe = /\b(amount\s+due|balance\s+due)\b/i;
+  // Pass 3: "Amount Due" / "Balance Due" — only if non-zero (already-paid invoices show $0.00)
   for (let i = 0; i < lines.length; i++) {
-    if (!balanceRe.test(lines[i])) continue;
-    const same = amountsOnLine(lines[i]).filter((n) => n > 0.01);
-    if (same.length > 0) return Math.max(...same).toFixed(2);
-    const next = lines[i + 1] ? amountsOnLine(lines[i + 1]).filter((n) => n > 0.01) : [];
-    if (next.length > 0) return Math.max(...next).toFixed(2);
+    if (!/\b(amount\s+due|balance\s+due)\b/i.test(lines[i])) continue;
+    const v = bestFromLineOrNext(i, 0.01);
+    if (v !== null) return v.toFixed(2);
   }
 
-  // Pass 3: largest explicit dollar-sign amount, ignoring $0.00 and amounts > $1M
+  // Pass 4: largest explicit dollar-sign amount in the whole document
   const allAmounts: number[] = [];
   let m: RegExpMatchArray | null;
   const dollarRe = /\$\s*([\d,]+\.\d{2})/g;
@@ -149,7 +156,35 @@ function parseAmount(text: string): string | null {
   return Math.max(...allAmounts).toFixed(2);
 }
 
+// Well-known vendors: if any of these appear anywhere in the receipt text,
+// return the canonical name immediately rather than relying on line-parsing
+// (which gets confused by taglines like "How doers get more done.").
+const KNOWN_VENDORS: Array<[RegExp, string]> = [
+  [/\bthe\s+home\s+depot\b|home\s+depot/i, "The Home Depot"],
+  [/\blowe'?s\b/i, "Lowe's"],
+  [/\bace\s+hardware\b/i, "Ace Hardware"],
+  [/\bmenards\b/i, "Menards"],
+  [/\bharbor\s+freight\b/i, "Harbor Freight"],
+  [/\bwalmart\b/i, "Walmart"],
+  [/\btarget\b/i, "Target"],
+  [/\bcostco\b/i, "Costco"],
+  [/\bhome\s*goods\b/i, "HomeGoods"],
+  [/\bbest\s+buy\b/i, "Best Buy"],
+  [/\bstaples\b/i, "Staples"],
+  [/\boffice\s+depot\b/i, "Office Depot"],
+  [/\bamazon\b/i, "Amazon"],
+  [/\bwhole\s+foods\b/i, "Whole Foods"],
+  [/\btrader\s+joe'?s\b/i, "Trader Joe's"],
+  [/\bsherwin.williams\b/i, "Sherwin-Williams"],
+  [/\bbenjamin\s+moore\b/i, "Benjamin Moore"],
+];
+
 function parsePayee(text: string): string | null {
+  // Pre-scan: match known vendors anywhere in the full text
+  for (const [re, name] of KNOWN_VENDORS) {
+    if (re.test(text)) return name;
+  }
+
   // Exact-line skip (entire line is one of these tokens)
   const exactSkip =
     /^(receipt|invoice|thank you|store|sales|register|cashier|transaction|date|time|order|welcome|guest|customer|copy|visit us|paid|billed\s+to|ship\s+to|sold\s+to|description|qty|quantity|price|amount|subtotal|discount|tax|total|payment|subscription|billing|united\s+states|united\s+kingdom|\*+|-+|=+|\d+)$/i;
@@ -195,10 +230,11 @@ const VENDOR_CATEGORY: Array<[RegExp, string]> = [
   [/inspection|appraisal|survey/i, "Legal & Professional"],
 ];
 
-function suggestCategory(payee: string | null): string | null {
-  if (!payee) return null;
+function suggestCategory(payee: string | null, rawText: string): string | null {
+  // Check payee first, then fall back to searching the full receipt text
+  const targets = [payee, rawText].filter(Boolean) as string[];
   for (const [re, cat] of VENDOR_CATEGORY) {
-    if (re.test(payee)) {
+    if (targets.some((t) => re.test(t))) {
       if (CATEGORIES.find((c) => c.name === cat)) return cat;
     }
   }
@@ -213,7 +249,7 @@ function buildResult(rawText: string, confidence: number): OcrResult {
     date: parseDate(rawText),
     amount: parseAmount(rawText),
     payee,
-    category: suggestCategory(payee),
+    category: suggestCategory(payee, rawText),
     confidence,
     rawText,
   };
