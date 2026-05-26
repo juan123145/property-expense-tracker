@@ -2,7 +2,7 @@
 
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { transactions, transactionAttachments, properties, units } from "@/db/schema";
+import { transactions, transactionAttachments, properties, units, softDeleteQueue } from "@/db/schema";
 import { eq, and, desc, inArray, count } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { deleteFromR2 } from "@/lib/r2";
@@ -306,15 +306,27 @@ export async function deleteTransaction(id: string) {
   }
 
   // Soft-delete with deletedByUserId
+  const now = new Date();
+  const scheduledPermanentDeleteAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // +30 days
+
   await db
     .update(transactions)
     .set({
       isDeleted: true,
-      deletedAt: new Date(),
+      deletedAt: now,
       deletedByUserId: user.id,
-      updatedAt: new Date(),
+      scheduledPermanentDeleteAt,
+      updatedAt: now,
     })
     .where(eq(transactions.id, id));
+
+  // Insert into SoftDeleteQueue for background job processing
+  await db.insert(softDeleteQueue).values({
+    transactionId: id,
+    deletedByUserId: user.id,
+    scheduledPermanentDeleteAt,
+    status: "SOFT_DELETED",
+  });
 
   revalidatePath("/transactions");
   revalidatePath("/properties");
