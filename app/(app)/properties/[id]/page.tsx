@@ -1,6 +1,6 @@
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { properties, units, transactions, transactionAttachments, propertyShares } from "@/db/schema";
+import { properties, units, transactions, transactionAttachments, propertyShares, propertyMemberships } from "@/db/schema";
 import { eq, and, sum, desc, asc, or } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -11,13 +11,24 @@ import { PropertyShareSheet } from "@/components/properties/property-share-sheet
 import { TransactionsTableSection } from "@/app/(app)/transactions/transactions-client";
 
 async function getProperty(id: string, userId: string) {
-  // Owner OR accepted share
+  // Owner OR accepted share OR has active membership
   const [property] = await db
     .select({
-      id: properties.id, userId: properties.userId, name: properties.name,
-      address: properties.address, city: properties.city, state: properties.state,
-      zip: properties.zip, type: properties.type, isArchived: properties.isArchived,
-      notes: properties.notes, imageUrl: properties.imageUrl, createdAt: properties.createdAt,
+      id: properties.id,
+      userId: properties.userId,
+      name: properties.name,
+      address: properties.address,
+      city: properties.city,
+      state: properties.state,
+      zip: properties.zip,
+      type: properties.type,
+      isArchived: properties.isArchived,
+      notes: properties.notes,
+      imageUrl: properties.imageUrl,
+      createdAt: properties.createdAt,
+      ownerId: properties.ownerId,
+      role: propertyMemberships.role,
+      membershipId: propertyMemberships.id,
     })
     .from(properties)
     .where(
@@ -28,11 +39,20 @@ async function getProperty(id: string, userId: string) {
           and(
             eq(propertyShares.sharedWithUserId, userId),
             eq(propertyShares.status, "accepted"),
+          ),
+          and(
+            eq(propertyMemberships.userId, userId),
+            eq(propertyMemberships.status, "ACTIVE"),
           )
         )
       )
     )
     .leftJoin(propertyShares, eq(propertyShares.propertyId, properties.id))
+    .leftJoin(propertyMemberships, and(
+      eq(propertyMemberships.propertyId, properties.id),
+      eq(propertyMemberships.userId, userId),
+      eq(propertyMemberships.status, "ACTIVE"),
+    ))
     .limit(1);
   return property ?? null;
 }
@@ -139,7 +159,8 @@ export default async function PropertyDetailPage({ params }: PageProps) {
 
   if (!property) notFound();
 
-  const isOwner = property.userId === user.id;
+  const isOwner = property.userId === user.id || property.ownerId === user.id;
+  const userRole = property.role || (isOwner ? "OWNER" : undefined);
   const currentShares = isOwner ? await getPropertyShares(id) : [];
 
   const location = [property.city, property.state].filter(Boolean).join(", ");
@@ -191,7 +212,7 @@ export default async function PropertyDetailPage({ params }: PageProps) {
               currentShares={currentShares}
             />
           )}
-          <PropertyDetailClient property={property} units={unitList} />
+          <PropertyDetailClient property={property} units={unitList} userRole={userRole} />
         </div>
       </div>
 

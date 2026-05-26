@@ -24,27 +24,35 @@ type Unit = { id: string; name: string };
 type Props = {
   property: Property;
   units: Unit[];
+  userRole?: "OWNER" | "EDITOR" | "VIEWER";
 };
 
-export function PropertyDetailClient({ property, units }: Props) {
+export function PropertyDetailClient({ property, units, userRole }: Props) {
   const [editOpen, setEditOpen] = useState(false);
+  const canEdit = userRole === "OWNER";
 
   return (
     <>
       <div className="flex gap-2 flex-wrap">
-        <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-          <Pencil className="size-4 mr-2" />
-          Edit Property
-        </Button>
-        <ArchivePropertyButton propertyId={property.id} isArchived={property.isArchived ?? false} />
+        {canEdit && (
+          <>
+            <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+              <Pencil className="size-4 mr-2" />
+              Edit Property
+            </Button>
+            <ArchivePropertyButton propertyId={property.id} isArchived={property.isArchived ?? false} />
+          </>
+        )}
       </div>
 
-      <AddPropertySheet
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        property={property}
-        existingUnits={units}
-      />
+      {canEdit && (
+        <AddPropertySheet
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          property={property}
+          existingUnits={units}
+        />
+      )}
     </>
   );
 }
