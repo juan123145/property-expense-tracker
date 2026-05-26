@@ -12,7 +12,8 @@ import { PropertyShareSheet } from "@/components/properties/property-share-sheet
 import { TransactionsTableSection } from "@/app/(app)/transactions/transactions-client";
 
 async function getProperty(id: string, userId: string) {
-  // Owner OR accepted share OR has active membership
+  // Get property and check access
+  // User has access if: owner (properties.userId OR properties.ownerId) OR active member
   const [property] = await db
     .select({
       id: properties.id,
@@ -32,30 +33,25 @@ async function getProperty(id: string, userId: string) {
       membershipId: propertyMemberships.id,
     })
     .from(properties)
-    .where(
-      and(
-        eq(properties.id, id),
-        or(
-          eq(properties.userId, userId),
-          and(
-            eq(propertyShares.sharedWithUserId, userId),
-            eq(propertyShares.status, "accepted"),
-          ),
-          and(
-            eq(propertyMemberships.userId, userId),
-            eq(propertyMemberships.status, "ACTIVE"),
-          )
-        )
-      )
-    )
-    .leftJoin(propertyShares, eq(propertyShares.propertyId, properties.id))
     .leftJoin(propertyMemberships, and(
       eq(propertyMemberships.propertyId, properties.id),
       eq(propertyMemberships.userId, userId),
-      eq(propertyMemberships.status, "ACTIVE"),
+      eq(propertyMemberships.status, "ACTIVE")
     ))
+    .where(eq(properties.id, id))
     .limit(1);
-  return property ?? null;
+
+  // Return null if user has no access
+  if (!property) return null;
+
+  const isOwner = property.userId === userId || property.ownerId === userId;
+  const isMember = property.role !== null;
+
+  if (!isOwner && !isMember) {
+    return null;
+  }
+
+  return property;
 }
 
 async function getPropertyShares(propertyId: string) {
