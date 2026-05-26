@@ -125,3 +125,31 @@ export const propertyMemberships = pgTable(
   },
   (t) => [unique("property_memberships_property_user_unique").on(t.propertyId, t.userId)]
 );
+
+export const invitationStatusEnum = pgEnum("invitation_status", [
+  "PENDING",
+  "ACCEPTED",
+  "DECLINED",
+  "EXPIRED",
+  "CANCELED",
+]);
+
+export const propertyInvitations = pgTable("property_invitations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  propertyId: uuid("property_id")
+    .notNull()
+    .references(() => properties.id, { onDelete: "cascade" }),
+  invitedEmail: text("invited_email").notNull(),
+  invitedByUserId: text("invited_by_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  role: propertyRoleEnum("role").notNull(),
+  canShare: boolean("can_share").default(false),
+  status: invitationStatusEnum("status").notNull().default("PENDING"),
+  token: text("token").notNull(),
+  tokenUsedByUserId: text("token_used_by_user_id")
+    .references(() => users.id, { onDelete: "set null" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  respondedAt: timestamp("responded_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
