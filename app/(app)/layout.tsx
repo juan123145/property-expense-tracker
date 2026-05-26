@@ -2,12 +2,24 @@ import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { transactions, properties, units, users } from "@/db/schema";
 import { eq, and, count } from "drizzle-orm";
+import { redirect } from "next/navigation";
 import { AppSidebar, MobileBottomNav } from "@/components/layout/app-sidebar";
 import { AppLogo } from "@/components/brand/logo";
 import { QuickAddFAB } from "@/components/ui/quick-add-fab";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireAuth();
+
+  // Gate: if onboarding not complete, redirect to onboarding
+  const [userRow] = await db
+    .select({ onboardingComplete: users.onboardingComplete })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1);
+
+  if (!userRow?.onboardingComplete) {
+    redirect("/onboarding");
+  }
 
   const [nrRow, userProperties, allUnits] = await Promise.all([
     db
@@ -27,19 +39,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ]);
 
   const needsReviewCount = nrRow?.value ?? 0;
-
-  // Non-blocking: upsert user profile so admin panel shows friendly names
-  db.insert(users)
-    .values({ id: user.id, email: user.email ?? null, name: user.name ?? null, image: user.image ?? null })
-    .onConflictDoUpdate({
-      target: users.id,
-      set: { email: user.email ?? null, name: user.name ?? null, image: user.image ?? null, lastSeenAt: new Date() },
-    })
-    .catch(() => {});
+  const isAdmin = !!(
+    process.env.ADMIN_EMAIL &&
+    user.email?.toLowerCase() === process.env.ADMIN_EMAIL.toLowerCase()
+  );
 
   return (
     <div className="flex min-h-screen">
-      <AppSidebar needsReviewCount={needsReviewCount} />
+      <AppSidebar needsReviewCount={needsReviewCount} isAdmin={isAdmin} />
 
       {/* Mobile top header */}
       <header className="md:hidden fixed top-0 inset-x-0 z-40 flex items-center h-12 px-4 border-b bg-card/95 backdrop-blur-sm">
@@ -50,7 +57,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {children}
       </main>
 
-      <MobileBottomNav needsReviewCount={needsReviewCount} />
+      <MobileBottomNav needsReviewCount={needsReviewCount} isAdmin={isAdmin} />
       <QuickAddFAB properties={userProperties} allUnits={allUnits} />
     </div>
   );

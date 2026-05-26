@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Building2, Receipt, BarChart2, Settings, LogOut,
+  LayoutDashboard, Building2, Receipt, BarChart2, Settings, LogOut, Shield,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -17,9 +17,9 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-type Props = { needsReviewCount: number };
+type Props = { needsReviewCount: number; isAdmin?: boolean };
 
-export function AppSidebar({ needsReviewCount }: Props) {
+export function AppSidebar({ needsReviewCount, isAdmin }: Props) {
   const pathname = usePathname();
 
   return (
@@ -53,6 +53,17 @@ export function AppSidebar({ needsReviewCount }: Props) {
           );
         })}
       </nav>
+      {isAdmin && (
+        <div className="px-2 py-3 border-t border-b">
+          <Link
+            href="/admin"
+            className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-primary font-medium hover:bg-primary/10 transition-colors border border-primary/20"
+          >
+            <Shield className="size-4 shrink-0" />
+            Admin
+          </Link>
+        </div>
+      )}
       <div className="px-2 py-3 border-t">
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
@@ -66,7 +77,7 @@ export function AppSidebar({ needsReviewCount }: Props) {
   );
 }
 
-export function MobileBottomNav({ needsReviewCount }: Props) {
+export function MobileBottomNav({ needsReviewCount, isAdmin }: Props) {
   const pathname = usePathname();
 
   return (
@@ -99,6 +110,20 @@ export function MobileBottomNav({ needsReviewCount }: Props) {
           </Link>
         );
       })}
+      {isAdmin && (
+        <Link
+          href="/admin"
+          className={cn(
+            "relative flex flex-1 flex-col items-center justify-center gap-1.5 py-3 text-[11px] font-medium transition-colors",
+            pathname === "/admin" || pathname.startsWith("/admin/")
+              ? "text-primary"
+              : "text-muted-foreground"
+          )}
+        >
+          <Shield className={cn("size-6", pathname === "/admin" || pathname.startsWith("/admin/") ? "text-primary" : "text-muted-foreground")} />
+          Admin
+        </Link>
+      )}
     </nav>
   );
 }

@@ -65,9 +65,8 @@ export function OnboardingClient({ user }: Props) {
               maxLength={20}
               required
               disabled={isPending}
-              help="3-20 characters, letters/numbers/underscore only"
             />
-            <p className="text-xs text-muted-foreground mt-1">Letters, numbers, and underscores only</p>
+            <p className="text-xs text-muted-foreground mt-1">3-20 characters, letters/numbers/underscore only</p>
           </div>
 
           <div>

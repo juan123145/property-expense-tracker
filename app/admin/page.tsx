@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { AdminClient } from "./admin-client";
 
 type FileRow = {
+  id: string;
   userId: string;
   fileName: string | null;
   sizeKb: number | null;
@@ -52,8 +53,13 @@ export default async function AdminPage() {
     .innerJoin(transactions, eq(transactionAttachments.transactionId, transactions.id))
     .groupBy(transactions.userId);
 
-  const userProfiles = await db.select().from(users);
-  const profileMap = Object.fromEntries(userProfiles.map((u) => [u.id, u]));
+  let profileMap: Record<string, any> = {};
+  try {
+    const userProfiles = await db.select().from(users);
+    profileMap = Object.fromEntries(userProfiles.map((u) => [u.id, u]));
+  } catch {
+    // users table may not exist yet if migration hasn't run
+  }
 
   const fileCounts = await db
     .select({ userId: transactions.userId, cnt: count() })
@@ -64,6 +70,7 @@ export default async function AdminPage() {
 
   const allFiles = await db
     .select({
+      id: transactionAttachments.id,
       userId: transactions.userId,
       fileName: transactionAttachments.name,
       sizeKb: transactionAttachments.sizeKb,
