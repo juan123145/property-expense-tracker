@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { db } from "@/db";
+import { properties, propertyMemberships } from "@/db/schema";
+import { eq, and, or } from "drizzle-orm";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { Agent } from "https";
@@ -28,7 +31,39 @@ export async function GET(req: NextRequest, { params }: { params: Promise<Params
   const key = path.join("/");
 
   const userId = session.user.id;
-  const allowed = key.startsWith(`receipts/${userId}/`) || key.startsWith(`properties/${userId}/`);
+
+  // Receipt access: user must own the receipt
+  const isUserReceipt = key.startsWith(`receipts/${userId}/`);
+
+  // Property image access: user must own the property OR be an active member
+  let isPropertyImage = false;
+  if (key.startsWith(`properties/`)) {
+    const parts = key.split("/");
+    const propertyOwnerId = parts[1];
+
+    if (propertyOwnerId === userId) {
+      // User owns the property
+      isPropertyImage = true;
+    } else {
+      // Check if user is a member of any property that owns this image
+      const [membershipMatch] = await db
+        .select({ id: propertyMemberships.id })
+        .from(properties)
+        .innerJoin(propertyMemberships, eq(properties.id, propertyMemberships.propertyId))
+        .where(and(
+          or(eq(properties.userId, propertyOwnerId), eq(properties.ownerId, propertyOwnerId)),
+          eq(propertyMemberships.userId, userId),
+          eq(propertyMemberships.status, "ACTIVE")
+        ))
+        .limit(1);
+
+      if (membershipMatch) {
+        isPropertyImage = true;
+      }
+    }
+  }
+
+  const allowed = isUserReceipt || isPropertyImage;
   if (!allowed) {
     return new NextResponse("Forbidden", { status: 403 });
   }
