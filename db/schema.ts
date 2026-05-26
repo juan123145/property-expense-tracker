@@ -15,6 +15,8 @@ import {
 export const properties = pgTable("properties", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: text("user_id").notNull(),
+  ownerId: text("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdByUserId: text("created_by_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   address: text("address"),
   city: text("city"),
@@ -24,7 +26,9 @@ export const properties = pgTable("properties", {
   isArchived: boolean("is_archived").default(false),
   notes: text("notes"),
   imageUrl: text("image_url"),
+  imageStorageOwnerId: text("image_storage_owner_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
 export const units = pgTable("units", {

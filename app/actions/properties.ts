@@ -23,6 +23,8 @@ export async function createProperty(_prev: unknown, formData: FormData) {
       .insert(properties)
       .values({
         userId: user.id,
+        ownerId: user.id,
+        createdByUserId: user.id,
         name: name.trim(),
         address: (formData.get("address") as string) || null,
         city: (formData.get("city") as string) || null,
