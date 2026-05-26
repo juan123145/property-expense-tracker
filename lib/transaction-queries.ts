@@ -33,7 +33,6 @@ export interface TransactionWithDetails {
     name: string | null;
     sizeKb: number | null;
     position: number;
-    uploadedByUserId: string | null;
     createdAt: Date | null;
   }>;
 }
@@ -119,7 +118,6 @@ export async function getPropertyTransactions(
           name: att.name,
           sizeKb: att.sizeKb,
           position: att.position,
-          uploadedByUserId: att.uploadedByUserId,
           createdAt: att.createdAt,
         });
       }
@@ -210,7 +208,6 @@ export async function getPropertyDeletedTransactions(
           name: att.name,
           sizeKb: att.sizeKb,
           position: att.position,
-          uploadedByUserId: att.uploadedByUserId,
           createdAt: att.createdAt,
         });
       }

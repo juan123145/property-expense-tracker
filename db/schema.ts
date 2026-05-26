@@ -89,7 +89,6 @@ export const transactionAttachments = pgTable("transaction_attachments", {
   name: text("name"),
   sizeKb: integer("size_kb"),
   position: integer("position").notNull().default(0),
-  uploadedByUserId: text("uploaded_by_user_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 

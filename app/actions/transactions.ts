@@ -2,7 +2,7 @@
 
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { transactions, transactionAttachments, properties, units, softDeleteQueue } from "@/db/schema";
+import { transactions, transactionAttachments, properties, units, softDeleteQueue, storageOwnerships } from "@/db/schema";
 import { eq, and, desc, inArray, count } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { deleteFromR2 } from "@/lib/r2";
@@ -273,6 +273,40 @@ export async function updateTransaction(_prev: unknown, formData: FormData) {
         updatedAt: new Date(),
       })
       .where(eq(transactions.id, id));
+
+    // If property changed, reattribute storage ownership for all attachments
+    if (newPropertyIdRaw !== currentPropertyId) {
+      const attachmentUrls = await db
+        .select({ url: transactionAttachments.url })
+        .from(transactionAttachments)
+        .where(eq(transactionAttachments.transactionId, id));
+
+      if (attachmentUrls.length > 0) {
+        // Determine the new owner ID
+        let newOwnerId = user.id; // Default to transaction creator if no property
+        if (newPropertyIdRaw) {
+          const [newProperty] = await db
+            .select({ ownerId: properties.ownerId })
+            .from(properties)
+            .where(eq(properties.id, newPropertyIdRaw))
+            .limit(1);
+          if (newProperty) {
+            newOwnerId = newProperty.ownerId;
+          }
+        }
+
+        // Update all storage ownership records for this transaction's attachments
+        for (const { url } of attachmentUrls) {
+          await db
+            .update(storageOwnerships)
+            .set({
+              propertyId: newPropertyIdRaw,
+              ownerId: newOwnerId,
+            })
+            .where(eq(storageOwnerships.attachmentUrl, url));
+        }
+      }
+    }
 
     revalidatePath("/transactions");
     revalidatePath("/properties");
