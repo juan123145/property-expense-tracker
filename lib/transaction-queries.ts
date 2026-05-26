@@ -22,7 +22,6 @@ export interface TransactionWithDetails {
   needsReview: boolean;
   isDeleted: boolean;
   deletedAt: Date | null;
-  deletedByUserId: string | null;
   scheduledPermanentDeleteAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -75,7 +74,6 @@ export async function getPropertyTransactions(
       needsReview: transactions.needsReview,
       isDeleted: transactions.isDeleted,
       deletedAt: transactions.deletedAt,
-      deletedByUserId: transactions.deletedByUserId,
       scheduledPermanentDeleteAt: transactions.scheduledPermanentDeleteAt,
       createdAt: transactions.createdAt,
       updatedAt: transactions.updatedAt,
@@ -174,7 +172,6 @@ export async function getPropertyDeletedTransactions(
       needsReview: transactions.needsReview,
       isDeleted: transactions.isDeleted,
       deletedAt: transactions.deletedAt,
-      deletedByUserId: transactions.deletedByUserId,
       scheduledPermanentDeleteAt: transactions.scheduledPermanentDeleteAt,
       createdAt: transactions.createdAt,
       updatedAt: transactions.updatedAt,

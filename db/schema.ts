@@ -59,7 +59,6 @@ export const transactions = pgTable("transactions", {
   needsReview: boolean("needs_review").default(false),
   isDeleted: boolean("is_deleted").default(false),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
-  deletedByUserId: text("deleted_by_user_id").references(() => users.id, { onDelete: "set null" }),
   scheduledPermanentDeleteAt: timestamp("scheduled_permanent_delete_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
@@ -236,9 +235,6 @@ export const softDeleteQueue = pgTable("soft_delete_queue", {
   transactionId: uuid("transaction_id")
     .notNull()
     .references(() => transactions.id, { onDelete: "cascade" }),
-  deletedByUserId: text("deleted_by_user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
   status: deleteStatusEnum("status").notNull().default("SOFT_DELETED"),
   scheduledPermanentDeleteAt: timestamp("scheduled_permanent_delete_at", {
     withTimezone: true,

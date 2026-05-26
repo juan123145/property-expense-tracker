@@ -305,7 +305,7 @@ export async function deleteTransaction(id: string) {
     }
   }
 
-  // Soft-delete with deletedByUserId
+  // Soft-delete transaction
   const now = new Date();
   const scheduledPermanentDeleteAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // +30 days
 
@@ -314,7 +314,6 @@ export async function deleteTransaction(id: string) {
     .set({
       isDeleted: true,
       deletedAt: now,
-      deletedByUserId: user.id,
       scheduledPermanentDeleteAt,
       updatedAt: now,
     })
@@ -323,7 +322,6 @@ export async function deleteTransaction(id: string) {
   // Insert into SoftDeleteQueue for background job processing
   await db.insert(softDeleteQueue).values({
     transactionId: id,
-    deletedByUserId: user.id,
     scheduledPermanentDeleteAt,
     status: "SOFT_DELETED",
   });
@@ -463,7 +461,7 @@ export async function restoreTransaction(id: string) {
 
   await db
     .update(transactions)
-    .set({ isDeleted: false, deletedAt: null, deletedByUserId: null, updatedAt: new Date() })
+    .set({ isDeleted: false, deletedAt: null, updatedAt: new Date() })
     .where(eq(transactions.id, id));
 
   revalidatePath("/trash");
