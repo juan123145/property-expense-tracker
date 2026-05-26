@@ -191,3 +191,22 @@ export const propertyAuditLogs = pgTable("property_audit_logs", {
   userAgent: text("user_agent"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
+
+export const storageOwnerships = pgTable("storage_ownerships", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  attachmentUrl: text("attachment_url").notNull().unique(),
+  propertyId: uuid("property_id").references(() => properties.id, {
+    onDelete: "set null",
+  }),
+  ownerId: text("owner_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  uploadedByUserId: text("uploaded_by_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  sizeBytes: integer("size_bytes").notNull(),
+  contentType: text("content_type"),
+  filePath: text("file_path").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+});
