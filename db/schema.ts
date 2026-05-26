@@ -85,6 +85,9 @@ export const users = pgTable("users", {
   email: text("email"),
   name: text("name"),
   image: text("image"),
+  username: text("username").unique(),
+  phone: text("phone"),
+  onboardingComplete: boolean("onboarding_complete").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow(),
 });
