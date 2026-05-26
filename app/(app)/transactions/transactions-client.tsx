@@ -55,6 +55,7 @@ export type TransactionRow = {
   notes: string | null;
   needsReview: boolean | null;
   propertyName: string | null;
+  propertyImage: string | null;
   unitName: string | null;
   attachments: Array<{ id: string; url: string; name: string | null; sizeKb: number | null }>;
 };
@@ -69,6 +70,7 @@ type TrashedRow = {
   subcategory: string | null;
   deletedAt: Date | null;
   propertyName: string | null;
+  propertyImage: string | null;
   unitName: string | null;
 };
 
@@ -156,6 +158,12 @@ function TransactionCard({
       className="flex items-start gap-3 rounded-lg border bg-card px-4 py-3 active:bg-accent transition-colors cursor-pointer"
       onClick={() => onEdit(tx)}
     >
+      {tx.propertyImage && (
+        <div className="size-12 shrink-0 rounded-md overflow-hidden bg-muted">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={tx.propertyImage} alt={tx.propertyName || "Property"} className="size-full object-cover" />
+        </div>
+      )}
       <div className="flex flex-col items-center gap-1 shrink-0 pt-0.5">
         <div className={`size-2 rounded-full ${tx.needsReview ? "bg-yellow-400" : "bg-green-500"}`} />
         <span className="text-[10px] text-muted-foreground tabular-nums leading-none">

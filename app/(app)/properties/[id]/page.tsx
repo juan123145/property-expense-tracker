@@ -31,6 +31,7 @@ async function getProperty(id: string, userId: string) {
       ownerId: properties.ownerId,
       role: propertyMemberships.role,
       membershipId: propertyMemberships.id,
+      canShare: propertyMemberships.canShare,
     })
     .from(properties)
     .leftJoin(propertyMemberships, and(
@@ -155,6 +156,7 @@ export default async function PropertyDetailPage({ params }: PageProps) {
 
   const isOwner = property.userId === user.id || property.ownerId === user.id;
   const userRole = property.role || (isOwner ? "OWNER" : undefined);
+  const canShare = isOwner || property.canShare;
   const currentShares = isOwner ? await getPropertyShares(id) : [];
 
   const location = [property.city, property.state].filter(Boolean).join(", ");
@@ -200,18 +202,18 @@ export default async function PropertyDetailPage({ params }: PageProps) {
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-col sm:flex-row">
           {isOwner && (
-            <>
-              <Link href={`/properties/${property.id}/manage-access`}>
-                <Button variant="outline" size="sm">
-                  Manage Access
-                </Button>
-              </Link>
-              <PropertyShareSheet
-                propertyId={property.id}
-                propertyName={property.name}
-                currentShares={currentShares}
-              />
-            </>
+            <Link href={`/properties/${property.id}/manage-access`}>
+              <Button variant="outline" size="sm">
+                Manage Access
+              </Button>
+            </Link>
+          )}
+          {canShare && (
+            <PropertyShareSheet
+              propertyId={property.id}
+              propertyName={property.name}
+              currentShares={currentShares}
+            />
           )}
           <PropertyDetailClient property={property} units={unitList} userRole={userRole} />
         </div>

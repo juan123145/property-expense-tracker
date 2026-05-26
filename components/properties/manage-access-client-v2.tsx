@@ -226,53 +226,68 @@ export function ManageAccessClientV2({
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0 ml-4">
+                <div className="flex items-center gap-3 shrink-0 ml-4">
                   {member.role === "OWNER" ? (
                     // Owner: show badge, no controls
-                    <Badge variant="default" className="bg-green-600">
-                      Owner
-                    </Badge>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant="default" className="bg-green-600">
+                        Owner
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">Full access & control</span>
+                    </div>
                   ) : (
-                    <>
-                      {member.role && (
-                        <Select
-                          value={member.role}
-                          onValueChange={(role) =>
-                            handleRoleChange(
-                              member.id,
-                              role as "EDITOR" | "VIEWER",
-                              member.canShare ?? false
-                            )
-                          }
-                          disabled={updating === member.id}
-                        >
-                          <SelectTrigger className="w-24 h-9">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="EDITOR">Editor</SelectItem>
-                            <SelectItem value="VIEWER">Viewer</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
+                    <div className="flex items-center gap-2">
+                      <div className="flex flex-col gap-2">
+                        {member.role && (
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-medium text-muted-foreground">Access Level</label>
+                            <Select
+                              value={member.role}
+                              onValueChange={(role) =>
+                                handleRoleChange(
+                                  member.id,
+                                  role as "EDITOR" | "VIEWER",
+                                  member.canShare ?? false
+                                )
+                              }
+                              disabled={updating === member.id}
+                            >
+                              <SelectTrigger className="w-32 h-9">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="EDITOR">
+                                  <span>Editor — Can edit</span>
+                                </SelectItem>
+                                <SelectItem value="VIEWER">
+                                  <span>Viewer — Read only</span>
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
 
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={member.canShare ?? false}
-                          onChange={(e) =>
-                            handleRoleChange(
-                              member.id,
-                              (member.role ?? "VIEWER") as "EDITOR" | "VIEWER",
-                              e.target.checked
-                            )
-                          }
-                          disabled={updating === member.id}
-                          className="rounded border"
-                          title="Allow this member to share with others"
-                        />
+                      <label className="flex flex-col items-start gap-1 cursor-pointer">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={member.canShare ?? false}
+                            onChange={(e) =>
+                              handleRoleChange(
+                                member.id,
+                                (member.role ?? "VIEWER") as "EDITOR" | "VIEWER",
+                                e.target.checked
+                              )
+                            }
+                            disabled={updating === member.id}
+                            className="rounded border"
+                          />
+                          <span className="text-xs font-medium text-muted-foreground">Can Share</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground ml-6">Allow sharing with others</span>
                       </label>
-                    </>
+                    </div>
                   )}
 
                   {member.role !== "OWNER" && (
