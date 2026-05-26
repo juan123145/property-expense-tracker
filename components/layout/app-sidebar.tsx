@@ -30,10 +30,13 @@ export function AppSidebar({ needsReviewCount, isAdmin }: Props) {
   }, []);
 
   return (
-    <aside className={cn(
-      "hidden md:flex flex-col shrink-0 border-r bg-card h-screen sticky top-0 transition-all duration-300 ease-in-out",
-      isMounted && isCollapsed ? "w-20" : "w-60"
-    )}>
+    <aside
+      className={cn(
+        "hidden md:flex flex-col shrink-0 border-r bg-card h-screen sticky top-0 transition-all duration-300 ease-in-out",
+        isMounted && isCollapsed ? "w-20" : "w-60"
+      )}
+      suppressHydrationWarning
+    >
       <div
         className={cn(
           "flex items-center justify-between px-4 py-4 border-b transition-all duration-300",
@@ -75,6 +78,7 @@ export function AppSidebar({ needsReviewCount, isAdmin }: Props) {
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
               title={isMounted && isCollapsed ? label : undefined}
+              suppressHydrationWarning
             >
               <Icon className="size-5 shrink-0" />
               {!isMounted || !isCollapsed ? (
