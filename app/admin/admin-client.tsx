@@ -397,17 +397,17 @@ export function AdminClient({ users, currentUserId }: Props) {
       {/* File preview modal */}
       <Dialog open={!!previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }}>
         <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
-          <DialogHeader className="border-b">
-            <DialogTitle className="text-base">
+          <DialogHeader className="border-b pb-2">
+            <DialogTitle className="text-sm">
               {previewFile?.fileName || "File"}
             </DialogTitle>
-            <p className="text-xs text-muted-foreground font-normal mt-1">
+            <p className="text-xs text-muted-foreground font-normal mt-0.5">
               {previewFile && `${fmtBytes(previewFile.sizeKb ?? 0)} • ${new Date(previewFile.txDate).toLocaleDateString()}`}
             </p>
           </DialogHeader>
 
           {/* Preview Content */}
-          <div className="flex-1 overflow-auto flex items-center justify-center bg-muted/30 p-2 rounded-md min-h-[500px]">
+          <div className="flex-1 overflow-auto flex items-center justify-center bg-muted/30 p-1 rounded-md">
             {previewFile && isPreviewable(previewFile.fileName) ? (
               previewFile.fileName?.toLowerCase().endsWith('.pdf') ? (
                 <iframe
@@ -438,7 +438,7 @@ export function AdminClient({ users, currentUserId }: Props) {
 
           {/* Footer with actions */}
           {previewFile && (
-            <div className="flex items-center justify-between gap-2 pt-4 border-t">
+            <div className="flex items-center justify-between gap-2 pt-2 border-t">
               <a
                 href={previewFile.url}
                 download={previewFile.fileName ?? "file"}
