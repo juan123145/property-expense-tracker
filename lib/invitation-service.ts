@@ -63,10 +63,14 @@ export async function createInvitation(input: {
     const errorMessage = err instanceof Error ? err.message : String(err);
 
     // If unique constraint doesn't exist, try manual update
+    // Check for various error patterns from Drizzle/database drivers
     if (
       errorMessage.includes("not found") ||
       errorMessage.includes("Conflict target") ||
-      errorMessage.includes("does not exist")
+      errorMessage.includes("does not exist") ||
+      errorMessage.includes("Failed query") ||
+      errorMessage.includes("on conflict") ||
+      errorMessage.includes("constraint") && errorMessage.includes("does not exist")
     ) {
       // Unique constraint doesn't exist in production DB
       // Try to find and update existing invitation
