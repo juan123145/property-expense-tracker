@@ -395,17 +395,15 @@ export function AdminClient({ users, currentUserId }: Props) {
       </Sheet>
 
       {/* File preview modal */}
-      <Dialog open={!!previewFile} onOpenChange={(open) => !open && setPreviewFile(null)}>
+      <Dialog open={!!previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }}>
         <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>
-              <div className="flex-1 min-w-0">
-                <p className="truncate">{previewFile?.fileName}</p>
-                <p className="text-xs text-muted-foreground font-normal mt-0.5">
-                  {previewFile && `${fmtBytes(previewFile.sizeKb ?? 0)} • ${new Date(previewFile.txDate).toLocaleDateString()}`}
-                </p>
-              </div>
+          <DialogHeader className="border-b">
+            <DialogTitle className="text-base">
+              {previewFile?.fileName || "File"}
             </DialogTitle>
+            <p className="text-xs text-muted-foreground font-normal mt-1">
+              {previewFile && `${fmtBytes(previewFile.sizeKb ?? 0)} • ${new Date(previewFile.txDate).toLocaleDateString()}`}
+            </p>
           </DialogHeader>
 
           {/* Preview Content */}
