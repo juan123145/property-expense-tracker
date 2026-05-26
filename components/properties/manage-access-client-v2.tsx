@@ -390,7 +390,7 @@ export function ManageAccessClientV2({
                     key={member.id}
                     className="flex items-center justify-between rounded-lg border bg-red-50 dark:bg-red-950/20 p-3 text-sm"
                   >
-                    <div className="flex-1">
+                    <div>
                       <p className="font-medium">{member.name || member.email}</p>
                       {member.revokedAt && (
                         <p className="text-xs text-muted-foreground">
@@ -398,7 +398,7 @@ export function ManageAccessClientV2({
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0 ml-4">
+                    <div className="flex items-center gap-2 shrink-0">
                       <Badge variant="destructive">{member.role}</Badge>
                       <button
                         onClick={() => handleReinstateAccess(member.id, member.role)}
