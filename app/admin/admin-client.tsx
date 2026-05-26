@@ -368,7 +368,7 @@ export function AdminClient({ users, currentUserId }: Props) {
                         href={file.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-background transition-colors"
+                        className="p-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
                         title="Download"
                       >
                         <Download className="size-4" />
@@ -442,7 +442,7 @@ export function AdminClient({ users, currentUserId }: Props) {
               <a
                 href={previewFile.url}
                 download={previewFile.fileName ?? "file"}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-blue-300 bg-blue-50 text-blue-700 text-sm font-medium hover:bg-blue-100 transition-colors"
               >
                 <Download className="size-4" />
                 Download
