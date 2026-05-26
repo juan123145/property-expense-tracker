@@ -1,7 +1,7 @@
-import { requireAuth } from "@/lib/auth-utils";
+import { requireAuth, getAccessiblePropertyIds } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { transactions, properties } from "@/db/schema";
-import { eq, and, sql, desc, count, isNotNull } from "drizzle-orm";
+import { eq, and, sql, desc, count, isNotNull, inArray } from "drizzle-orm";
 import { DashboardClient } from "./dashboard-client";
 import { getPresetRange, presetDisplayLabel, type DatePreset } from "@/lib/date-ranges";
 
@@ -57,8 +57,10 @@ async function getSummary(
   const periodEnd = range?.end ?? null;
   const ys = yearStart();
 
+  const accessiblePropertyIds = await getAccessiblePropertyIds(userId);
+
   const base = [
-    eq(transactions.userId, userId),
+    inArray(transactions.propertyId, accessiblePropertyIds),
     eq(transactions.isDeleted, false),
     ...(propertyId ? [eq(transactions.propertyId, propertyId)] : []),
   ];
@@ -123,10 +125,12 @@ async function getPropertyTotals(
   const periodEnd = range?.end ?? null;
   const ys = yearStart();
 
+  const accessiblePropertyIds = await getAccessiblePropertyIds(userId);
+
   const propQuery = db
     .select({ id: properties.id, name: properties.name, address: properties.address, city: properties.city, state: properties.state, type: properties.type, imageUrl: properties.imageUrl })
     .from(properties)
-    .where(and(eq(properties.userId, userId), eq(properties.isArchived, false)));
+    .where(and(inArray(properties.id, accessiblePropertyIds), eq(properties.isArchived, false)));
 
   const props = filterPropertyId
     ? (await propQuery).filter((p) => p.id === filterPropertyId)
@@ -181,8 +185,10 @@ async function getCategoryChart(
   const periodStart = range?.start ?? monthStart();
   const periodEnd = range?.end ?? null;
 
+  const accessiblePropertyIds = await getAccessiblePropertyIds(userId);
+
   const base = [
-    eq(transactions.userId, userId),
+    inArray(transactions.propertyId, accessiblePropertyIds),
     eq(transactions.type, "expense"),
     eq(transactions.isDeleted, false),
     isNotNull(transactions.category),
@@ -203,13 +209,15 @@ async function getCategoryChart(
 }
 
 async function getRecentTransactions(userId: string, propertyId: string | null) {
+  const accessiblePropertyIds = await getAccessiblePropertyIds(userId);
+
   return db
     .select({ id: transactions.id, date: transactions.date, amount: transactions.amount, type: transactions.type, payee: transactions.payee, category: transactions.category, propertyName: properties.name })
     .from(transactions)
     .leftJoin(properties, eq(transactions.propertyId, properties.id))
     .where(
       and(
-        eq(transactions.userId, userId),
+        inArray(transactions.propertyId, accessiblePropertyIds),
         eq(transactions.isDeleted, false),
         ...(propertyId ? [eq(transactions.propertyId, propertyId)] : [])
       )
@@ -231,6 +239,8 @@ export default async function DashboardPage({
   const { range, preset } = parseDateRange(params.preset, params.start, params.end);
   const propertyId = params.property ?? null;
 
+  const accessiblePropertyIds = await getAccessiblePropertyIds(user.id);
+
   const [summary, propertyTotals, categoryChart, recentTxs, userProperties] = await Promise.all([
     getSummary(user.id, range, propertyId),
     getPropertyTotals(user.id, range, propertyId),
@@ -238,7 +248,7 @@ export default async function DashboardPage({
     getRecentTransactions(user.id, propertyId),
     db.select({ id: properties.id, name: properties.name })
       .from(properties)
-      .where(and(eq(properties.userId, user.id), eq(properties.isArchived, false))),
+      .where(and(inArray(properties.id, accessiblePropertyIds), eq(properties.isArchived, false))),
   ]);
 
   const periodLabel = presetDisplayLabel(preset, params.start, params.end);

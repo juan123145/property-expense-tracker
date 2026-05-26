@@ -1,7 +1,7 @@
-import { requireAuth } from "@/lib/auth-utils";
+import { requireAuth, getAccessiblePropertyIds } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { transactions, properties, units } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { getPresetRange, presetDisplayLabel, type DatePreset } from "@/lib/date-ranges";
 import { ByPropertyClient } from "./client";
 
@@ -41,11 +41,13 @@ export default async function ByPropertyPage({
 
   const { range, preset } = parseDateRange(params.preset, params.start, params.end);
 
+  const accessiblePropertyIds = await getAccessiblePropertyIds(user.id);
+
   const [props, txRows, allUnits] = await Promise.all([
     db
       .select({ id: properties.id, name: properties.name, address: properties.address, city: properties.city, state: properties.state })
       .from(properties)
-      .where(and(eq(properties.userId, user.id), eq(properties.isArchived, false))),
+      .where(and(inArray(properties.id, accessiblePropertyIds), eq(properties.isArchived, false))),
 
     db
       .select({
@@ -57,7 +59,7 @@ export default async function ByPropertyPage({
       .from(transactions)
       .where(
         and(
-          eq(transactions.userId, user.id),
+          inArray(transactions.propertyId, accessiblePropertyIds),
           eq(transactions.isDeleted, false),
           sql`${transactions.date} >= ${range.start}::date`,
           sql`${transactions.date} <= ${range.end}::date`

@@ -1,7 +1,7 @@
-import { requireAuth } from "@/lib/auth-utils";
+import { requireAuth, getAccessiblePropertyIds } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { transactions, properties, units } from "@/db/schema";
-import { eq, and, sql, ne, isNotNull } from "drizzle-orm";
+import { eq, and, sql, ne, isNotNull, inArray } from "drizzle-orm";
 import { EXCLUDED_CATEGORIES, EXPENSE_CATEGORIES } from "@/lib/report-utils";
 import { AnnualSummaryClient } from "./client";
 
@@ -18,8 +18,10 @@ export default async function AnnualSummaryPage({
   const propertyId = params.property ?? null;
   const unitId = params.unit ?? null;
 
+  const accessiblePropertyIds = await getAccessiblePropertyIds(user.id);
+
   const baseFilters = (y: number) => [
-    eq(transactions.userId, user.id),
+    inArray(transactions.propertyId, accessiblePropertyIds),
     eq(transactions.type, "expense"),
     eq(transactions.isDeleted, false),
     isNotNull(transactions.category),
@@ -45,7 +47,7 @@ export default async function AnnualSummaryPage({
     db
       .select({ id: properties.id, name: properties.name })
       .from(properties)
-      .where(and(eq(properties.userId, user.id), eq(properties.isArchived, false))),
+      .where(and(inArray(properties.id, accessiblePropertyIds), eq(properties.isArchived, false))),
 
     db
       .select({ id: units.id, propertyId: units.propertyId, name: units.name })

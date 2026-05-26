@@ -1,7 +1,7 @@
-import { requireAuth } from "@/lib/auth-utils";
+import { requireAuth, getAccessiblePropertyIds } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { transactions, properties, units } from "@/db/schema";
-import { eq, and, sql, ne } from "drizzle-orm";
+import { eq, and, sql, ne, inArray } from "drizzle-orm";
 import { getPresetRange, presetDisplayLabel, type DatePreset } from "@/lib/date-ranges";
 import { ExpenseSummaryClient } from "./client";
 
@@ -67,8 +67,10 @@ export default async function ExpenseSummaryPage({
   const propertyId = params.property ?? null;
   const unitId = params.unit ?? null;
 
+  const accessiblePropertyIds = await getAccessiblePropertyIds(user.id);
+
   const base = [
-    eq(transactions.userId, user.id),
+    inArray(transactions.propertyId, accessiblePropertyIds),
     eq(transactions.isDeleted, false),
     ne(transactions.category as Parameters<typeof ne>[0], "Transfers"),
     sql`${transactions.date} >= ${range.start}::date`,
@@ -80,7 +82,7 @@ export default async function ExpenseSummaryPage({
   const [userProperties, allUnits] = await Promise.all([
     db.select({ id: properties.id, name: properties.name })
       .from(properties)
-      .where(and(eq(properties.userId, user.id), eq(properties.isArchived, false))),
+      .where(and(inArray(properties.id, accessiblePropertyIds), eq(properties.isArchived, false))),
     db.select({ id: units.id, propertyId: units.propertyId, name: units.name })
       .from(units),
   ]);

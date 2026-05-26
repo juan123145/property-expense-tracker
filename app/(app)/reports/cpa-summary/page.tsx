@@ -1,7 +1,7 @@
-import { requireAuth } from "@/lib/auth-utils";
+import { requireAuth, getAccessiblePropertyIds } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { transactions, properties } from "@/db/schema";
-import { eq, and, sql, ne } from "drizzle-orm";
+import { eq, and, sql, ne, inArray } from "drizzle-orm";
 import { SCHEDULE_E_SECTIONS, type CpaSummarySection } from "@/lib/report-utils";
 import { CpaSummaryClient } from "./client";
 
@@ -17,8 +17,10 @@ export default async function CpaSummaryPage({
   const year = params.year ? parseInt(params.year) : currentYear;
   const propertyId = params.property ?? null;
 
+  const accessiblePropertyIds = await getAccessiblePropertyIds(user.id);
+
   const base = [
-    eq(transactions.userId, user.id),
+    inArray(transactions.propertyId, accessiblePropertyIds),
     eq(transactions.isDeleted, false),
     ne(transactions.category as Parameters<typeof ne>[0], "Transfers"),
     sql`EXTRACT(YEAR FROM ${transactions.date}) = ${year}`,
@@ -40,7 +42,7 @@ export default async function CpaSummaryPage({
     db
       .select({ id: properties.id, name: properties.name })
       .from(properties)
-      .where(and(eq(properties.userId, user.id), eq(properties.isArchived, false))),
+      .where(and(inArray(properties.id, accessiblePropertyIds), eq(properties.isArchived, false))),
   ]);
 
   // Build a lookup: category → subcategory → total
