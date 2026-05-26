@@ -158,7 +158,7 @@ export function AdminClient({ users, currentUserId }: Props) {
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         {[
           { label: "Users", value: totalUsers, icon: Users },
           { label: "Properties", value: totalProps, icon: Building2 },
@@ -166,12 +166,12 @@ export function AdminClient({ users, currentUserId }: Props) {
           { label: "Files", value: totalFiles, icon: HardDrive },
           { label: "Storage", value: fmtBytes(totalStorage), icon: HardDrive },
         ].map(({ label, value, icon: Icon }) => (
-          <div key={label} className="rounded-lg border bg-card p-4 space-y-1.5">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Icon className="size-4" />
-              <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
+          <div key={label} className="rounded-lg border bg-card p-2.5 space-y-1">
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <Icon className="size-3" />
+              <span className="text-[10px] font-medium uppercase tracking-wide">{label}</span>
             </div>
-            <p className="text-2xl font-bold tabular-nums">{value}</p>
+            <p className="text-lg font-bold tabular-nums">{value}</p>
           </div>
         ))}
       </div>
@@ -396,7 +396,7 @@ export function AdminClient({ users, currentUserId }: Props) {
 
       {/* File preview modal */}
       <Dialog open={!!previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }}>
-        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
           <DialogHeader className="border-b">
             <DialogTitle className="text-base">
               {previewFile?.fileName || "File"}
