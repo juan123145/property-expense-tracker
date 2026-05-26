@@ -29,6 +29,76 @@
       "when": 1748350800000,
       "tag": "0003_users_onboarding",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779715272701,
+      "tag": "0004_property_membership",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779715272702,
+      "tag": "0005_property_invitation",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779715272703,
+      "tag": "0006_audit_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779715272704,
+      "tag": "0007_storage_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779715272705,
+      "tag": "0008_soft_delete_queue",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1779715272706,
+      "tag": "0009_properties_schema_updates",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1779715272707,
+      "tag": "0010_transactions_schema_updates",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1779715272708,
+      "tag": "0011_attachments_schema_updates",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1779715272709,
+      "tag": "0012_migrate_property_shares",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1779715272710,
+      "tag": "0013_create_owner_memberships",
+      "breakpoints": true
     }
   ]
 }
