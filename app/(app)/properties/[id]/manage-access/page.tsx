@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ManageAccessClient } from "@/components/properties/manage-access-client";
+import { ManageAccessClientV2 } from "@/components/properties/manage-access-client-v2";
 
 async function getProperty(id: string, userId: string) {
   const [property] = await db
@@ -75,21 +75,18 @@ export default async function ManageAccessPage({ params }: PageProps) {
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-8">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between">
         <Link href={`/properties/${id}`}>
           <Button variant="ghost" size="sm" className="gap-2">
             <ChevronLeft className="size-4" />
             Back
           </Button>
         </Link>
-        <span className="text-sm text-muted-foreground">
-          Manage Access: {property.name}
-        </span>
       </div>
 
-      <ManageAccessClient
+      <ManageAccessClientV2
         propertyId={id}
         members={members}
         invitations={invitations}
