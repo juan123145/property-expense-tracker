@@ -1,9 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Building2, Receipt, BarChart2, Settings, LogOut, Shield,
+  LayoutDashboard, Building2, Receipt, BarChart2, Settings, LogOut, Shield, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -21,12 +22,34 @@ type Props = { needsReviewCount: number; isAdmin?: boolean };
 
 export function AppSidebar({ needsReviewCount, isAdmin }: Props) {
   const pathname = usePathname();
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
-    <aside className="hidden md:flex flex-col w-60 shrink-0 border-r bg-card h-screen sticky top-0">
-      <div className="px-4 py-4 border-b">
-        <AppLogo />
+    <aside className={cn(
+      "hidden md:flex flex-col shrink-0 border-r bg-card h-screen sticky top-0 transition-all duration-300 ease-in-out",
+      isCollapsed ? "w-20" : "w-60"
+    )}>
+      <div className={cn(
+        "flex items-center justify-between px-4 py-4 border-b transition-all duration-300",
+        isCollapsed && "flex-col gap-2"
+      )}>
+        {!isCollapsed && <AppLogo />}
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className={cn(
+            "p-1.5 hover:bg-accent rounded-md transition-colors ml-auto",
+            isCollapsed && "ml-0"
+          )}
+          title={isCollapsed ? "Expand" : "Collapse"}
+        >
+          {isCollapsed ? (
+            <ChevronRight className="size-4" />
+          ) : (
+            <ChevronLeft className="size-4" />
+          )}
+        </button>
       </div>
+
       <nav className="flex-1 px-2 py-4 space-y-0.5">
         {navItems.map(({ href, label, icon: Icon, hasBadge }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
@@ -36,16 +59,27 @@ export function AppSidebar({ needsReviewCount, isAdmin }: Props) {
               key={href}
               href={href}
               className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors justify-center",
+                isCollapsed && "flex-col",
                 active
                   ? "bg-primary text-primary-foreground font-medium"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
+              title={isCollapsed ? label : undefined}
             >
-              <Icon className="size-4 shrink-0" />
-              <span className="flex-1">{label}</span>
-              {badge !== null && (
-                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+              <Icon className="size-5 shrink-0" />
+              {!isCollapsed && (
+                <>
+                  <span className="flex-1">{label}</span>
+                  {badge !== null && (
+                    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+                      {badge > 99 ? "99+" : badge}
+                    </span>
+                  )}
+                </>
+              )}
+              {isCollapsed && badge !== null && (
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-white">
                   {badge > 99 ? "99+" : badge}
                 </span>
               )}
@@ -54,23 +88,37 @@ export function AppSidebar({ needsReviewCount, isAdmin }: Props) {
         })}
       </nav>
       {isAdmin && (
-        <div className="px-2 py-3 border-t border-b">
+        <div className={cn(
+          "px-2 py-3 border-t border-b transition-all duration-300",
+          isCollapsed && "flex justify-center"
+        )}>
           <Link
             href="/admin"
-            className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-primary font-medium hover:bg-primary/10 transition-colors border border-primary/20"
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-md text-sm text-primary font-medium hover:bg-primary/10 transition-colors border border-primary/20",
+              isCollapsed && "flex-col p-1.5"
+            )}
+            title={isCollapsed ? "Admin" : undefined}
           >
             <Shield className="size-4 shrink-0" />
-            Admin
+            {!isCollapsed && "Admin"}
           </Link>
         </div>
       )}
-      <div className="px-2 py-3 border-t">
+      <div className={cn(
+        "px-2 py-3 border-t transition-all duration-300",
+        isCollapsed && "flex justify-center"
+      )}>
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
-          className="flex w-full items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors",
+            isCollapsed && "flex-col p-1.5"
+          )}
+          title={isCollapsed ? "Sign out" : undefined}
         >
           <LogOut className="size-4 shrink-0" />
-          Sign out
+          {!isCollapsed && "Sign out"}
         </button>
       </div>
     </aside>

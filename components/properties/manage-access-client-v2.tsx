@@ -165,29 +165,27 @@ export function ManageAccessClientV2({
         onOpenChange={setShareModalOpen}
       />
 
-      {/* Header with Add Collaborator Button */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Manage Access</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Control who has access to this property and what they can do
-          </p>
-        </div>
+      {/* Add Collaborator Button */}
+      <div className="flex justify-end">
         <Button
           onClick={() => setShareModalOpen(true)}
-          className="gap-2"
+          className="gap-2 bg-primary hover:bg-primary/90"
           size="lg"
         >
-          <Plus className="size-4" />
+          <Plus className="size-5" />
           Add Collaborator
         </Button>
       </div>
 
       {/* Active Members */}
-      <section className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Users2 className="size-5 text-muted-foreground" />
-          <h2 className="text-lg font-semibold">Active Members ({activeMembers.length})</h2>
+      <section className="space-y-5 pt-4">
+        <div className="space-y-2 px-2">
+          <div className="flex items-center gap-3">
+            <Users2 className="size-5 text-primary" />
+            <h2 className="text-xl font-bold">Active Members</h2>
+            <span className="text-sm text-muted-foreground font-medium">({activeMembers.length})</span>
+          </div>
+          <p className="text-sm text-muted-foreground">Manage who can access and collaborate</p>
         </div>
 
         {activeMembers.length === 0 ? (

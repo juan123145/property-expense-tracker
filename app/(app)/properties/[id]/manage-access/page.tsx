@@ -76,15 +76,25 @@ export default async function ManageAccessPage({ params }: PageProps) {
   ]);
 
   return (
-    <div className="space-y-6 pb-8">
-      {/* Breadcrumb */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-8 pb-8">
+      {/* Header with back button */}
+      <div className="flex items-center gap-4 pt-4">
         <Link href={`/properties/${id}`}>
-          <Button variant="ghost" size="sm" className="gap-2">
-            <ChevronLeft className="size-4" />
-            Back
+          <Button
+            variant="outline"
+            size="lg"
+            className="gap-2 bg-background hover:bg-accent border-2 hover:border-primary/50 transition-all"
+          >
+            <ChevronLeft className="size-5" />
+            <span className="font-semibold">Back to {property.name}</span>
           </Button>
         </Link>
+      </div>
+
+      {/* Page title */}
+      <div className="space-y-2 px-2">
+        <h1 className="text-3xl font-bold tracking-tight">Manage Access</h1>
+        <p className="text-muted-foreground">Control who can access and collaborate on this property</p>
       </div>
 
       <ManageAccessClientV2
