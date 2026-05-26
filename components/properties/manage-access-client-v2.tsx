@@ -220,7 +220,7 @@ export function ManageAccessClientV2({
                     </div>
                   </div>
                   {member.joinedAt && (
-                    <p className="text-xs text-muted-foreground mt-2">
+                    <p className="text-xs text-muted-foreground mt-2" suppressHydrationWarning>
                       Joined {formatDistanceToNow(member.joinedAt, { addSuffix: true })}
                     </p>
                   )}
@@ -326,7 +326,7 @@ export function ManageAccessClientV2({
                       <Badge variant="outline">Can Share</Badge>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">
+                  <p className="text-xs text-muted-foreground mt-2" suppressHydrationWarning>
                     {invite.createdAt && (
                       <>
                         Invited {formatDistanceToNow(invite.createdAt, { addSuffix: true })}
@@ -339,7 +339,7 @@ export function ManageAccessClientV2({
                     <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
                       Expires
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground" suppressHydrationWarning>
                       {formatDistanceToNow(invite.expiresAt, { addSuffix: true })}
                     </p>
                   </div>
@@ -393,7 +393,7 @@ export function ManageAccessClientV2({
                     <div>
                       <p className="font-medium">{member.name || member.email}</p>
                       {member.revokedAt && (
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground" suppressHydrationWarning>
                           Revoked {formatDistanceToNow(member.revokedAt, { addSuffix: true })}
                         </p>
                       )}
