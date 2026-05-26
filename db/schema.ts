@@ -9,6 +9,7 @@ import {
   timestamp,
   unique,
   pgEnum,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 export const properties = pgTable("properties", {
@@ -151,5 +152,42 @@ export const propertyInvitations = pgTable("property_invitations", {
     .references(() => users.id, { onDelete: "set null" }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   respondedAt: timestamp("responded_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+// Enum for audit log actions
+export const auditActionEnum = pgEnum("audit_action", [
+  "PROPERTY_CREATED",
+  "PROPERTY_UPDATED",
+  "PROPERTY_DELETED",
+  "TRANSACTION_CREATED",
+  "TRANSACTION_UPDATED",
+  "TRANSACTION_DELETED",
+  "TRANSACTION_RESTORED",
+  "MEMBERSHIP_ADDED",
+  "MEMBERSHIP_ROLE_CHANGED",
+  "MEMBERSHIP_REVOKED",
+  "INVITATION_CREATED",
+  "INVITATION_ACCEPTED",
+  "INVITATION_DECLINED",
+  "INVITATION_CANCELED",
+  "ATTACHMENT_UPLOADED",
+  "ATTACHMENT_DELETED",
+]);
+
+export const propertyAuditLogs = pgTable("property_audit_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  propertyId: uuid("property_id")
+    .notNull()
+    .references(() => properties.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  action: auditActionEnum("action").notNull(),
+  resourceType: text("resource_type").notNull(),
+  resourceId: text("resource_id"),
+  changes: jsonb("changes"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
