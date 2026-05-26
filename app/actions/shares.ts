@@ -2,7 +2,7 @@
 
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { propertyMemberships, propertyInvitations } from "@/db/schema";
+import { propertyMemberships, propertyInvitations, users } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/lib/email";
@@ -68,6 +68,42 @@ export async function shareProperty(
   }
 
   try {
+    // Check if invitee already has access (active membership)
+    const invitedUser = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+
+    if (invitedUser.length > 0) {
+      const [existingMembership] = await db
+        .select({
+          role: propertyMemberships.role,
+          status: propertyMemberships.status,
+        })
+        .from(propertyMemberships)
+        .where(
+          and(
+            eq(propertyMemberships.propertyId, propertyId),
+            eq(propertyMemberships.userId, invitedUser[0].id),
+            eq(propertyMemberships.status, "ACTIVE")
+          )
+        )
+        .limit(1);
+
+      if (existingMembership) {
+        // User already has access - check if trying to grant same or lower privilege
+        const roleHierarchy = { OWNER: 3, EDITOR: 2, VIEWER: 1 };
+        const existingLevel = roleHierarchy[existingMembership.role as "OWNER" | "EDITOR" | "VIEWER"] || 0;
+        const newLevel = roleHierarchy[role as "OWNER" | "EDITOR" | "VIEWER"] || 0;
+
+        if (newLevel <= existingLevel) {
+          return { error: `This user already has ${existingMembership.role} access to this property. You cannot share a lower or equal role.` };
+        }
+        // Allow upgrade (e.g., VIEWER to EDITOR)
+      }
+    }
+
     // Create invitation
     let token: string;
     try {

@@ -227,54 +227,64 @@ export function ManageAccessClientV2({
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0 ml-4">
-                  {member.role && (
-                    <Select
-                      value={member.role}
-                      onValueChange={(role) =>
-                        handleRoleChange(
-                          member.id,
-                          role as "EDITOR" | "VIEWER",
-                          member.canShare ?? false
-                        )
-                      }
-                      disabled={updating === member.id}
-                    >
-                      <SelectTrigger className="w-24 h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="EDITOR">Editor</SelectItem>
-                        <SelectItem value="VIEWER">Viewer</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  {member.role === "OWNER" ? (
+                    // Owner: show badge, no controls
+                    <Badge variant="default" className="bg-green-600">
+                      Owner
+                    </Badge>
+                  ) : (
+                    <>
+                      {member.role && (
+                        <Select
+                          value={member.role}
+                          onValueChange={(role) =>
+                            handleRoleChange(
+                              member.id,
+                              role as "EDITOR" | "VIEWER",
+                              member.canShare ?? false
+                            )
+                          }
+                          disabled={updating === member.id}
+                        >
+                          <SelectTrigger className="w-24 h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="EDITOR">Editor</SelectItem>
+                            <SelectItem value="VIEWER">Viewer</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={member.canShare ?? false}
+                          onChange={(e) =>
+                            handleRoleChange(
+                              member.id,
+                              (member.role ?? "VIEWER") as "EDITOR" | "VIEWER",
+                              e.target.checked
+                            )
+                          }
+                          disabled={updating === member.id}
+                          className="rounded border"
+                          title="Allow this member to share with others"
+                        />
+                      </label>
+                    </>
                   )}
 
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={member.canShare ?? false}
-                      onChange={(e) =>
-                        handleRoleChange(
-                          member.id,
-                          (member.role ?? "VIEWER") as "EDITOR" | "VIEWER",
-                          e.target.checked
-                        )
-                      }
-                      disabled={updating === member.id}
-                      className="rounded border"
-                      title="Allow this member to share with others"
-                    />
-                  </label>
-
-                  <AlertDialog>
-                    <button
-                      onClick={() => handleRevoke(member.id)}
-                      disabled={revoking === member.id}
-                      className="text-destructive hover:bg-destructive/10 p-2 rounded transition-colors disabled:opacity-50"
-                      title="Revoke access"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
+                  {member.role !== "OWNER" && (
+                    <AlertDialog>
+                      <button
+                        onClick={() => handleRevoke(member.id)}
+                        disabled={revoking === member.id}
+                        className="text-destructive hover:bg-destructive/10 p-2 rounded transition-colors disabled:opacity-50"
+                        title="Revoke access"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
                     <AlertDialogContent>
                       <AlertDialogTitle>Revoke Access</AlertDialogTitle>
                       <AlertDialogDescription>
@@ -291,7 +301,8 @@ export function ManageAccessClientV2({
                         </AlertDialogAction>
                       </div>
                     </AlertDialogContent>
-                  </AlertDialog>
+                    </AlertDialog>
+                  )}
                 </div>
               </div>
             ))}
