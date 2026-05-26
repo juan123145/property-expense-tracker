@@ -396,23 +396,23 @@ export function AdminClient({ users, currentUserId }: Props) {
 
       {/* File preview modal */}
       <Dialog open={!!previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }}>
-        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
-          <DialogHeader className="border-b pb-2">
-            <DialogTitle className="text-sm">
+        <DialogContent className="max-w-7xl max-h-[95vh] flex flex-col p-0 gap-0 border">
+          <DialogHeader className="border-b px-6 py-4 shrink-0">
+            <DialogTitle className="text-base">
               {previewFile?.fileName || "File"}
             </DialogTitle>
-            <p className="text-xs text-muted-foreground font-normal mt-0.5">
+            <p className="text-sm text-muted-foreground font-normal mt-1">
               {previewFile && `${fmtBytes(previewFile.sizeKb ?? 0)} • ${new Date(previewFile.txDate).toLocaleDateString()}`}
             </p>
           </DialogHeader>
 
           {/* Preview Content */}
-          <div className="flex-1 overflow-auto flex items-center justify-center bg-muted/30 p-1 rounded-md">
+          <div className="flex-1 overflow-auto flex items-center justify-center bg-muted/20 p-4 rounded-none">
             {previewFile && isPreviewable(previewFile.fileName) ? (
               previewFile.fileName?.toLowerCase().endsWith('.pdf') ? (
                 <iframe
                   src={previewFile.url}
-                  className="w-full h-full rounded-md border"
+                  className="w-full h-full rounded-md border shadow-lg"
                   title="PDF Preview"
                 />
               ) : (
@@ -420,16 +420,16 @@ export function AdminClient({ users, currentUserId }: Props) {
                 <img
                   src={previewFile.url}
                   alt={previewFile.fileName ?? "File preview"}
-                  className="w-full h-full object-contain rounded-md"
+                  className="max-w-full max-h-full object-contain rounded-md shadow-lg"
                 />
               )
             ) : previewFile ? (
               <div className="flex flex-col items-center gap-4">
-                <div className="flex items-center justify-center w-16 h-16 rounded-lg bg-muted">
-                  <FileX className="size-8 text-muted-foreground" />
+                <div className="flex items-center justify-center w-20 h-20 rounded-lg bg-muted">
+                  <FileX className="size-10 text-muted-foreground" />
                 </div>
-                <p className="text-sm font-medium text-muted-foreground">File not compatible for preview</p>
-                <p className="text-xs text-muted-foreground max-w-xs text-center">
+                <p className="text-base font-medium text-muted-foreground">File not compatible for preview</p>
+                <p className="text-sm text-muted-foreground max-w-sm text-center">
                   This file type cannot be opened in the browser. Click the download button below to save it.
                 </p>
               </div>
@@ -438,11 +438,11 @@ export function AdminClient({ users, currentUserId }: Props) {
 
           {/* Footer with actions */}
           {previewFile && (
-            <div className="flex items-center justify-between gap-2 pt-2 border-t">
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-t shrink-0 bg-muted/30">
               <a
                 href={previewFile.url}
                 download={previewFile.fileName ?? "file"}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
               >
                 <Download className="size-4" />
                 Download
@@ -450,7 +450,7 @@ export function AdminClient({ users, currentUserId }: Props) {
               <button
                 onClick={() => handleDeleteFile(previewFile)}
                 disabled={deletingAttachmentId === previewFile.id || deletingAttachment}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-red-300 bg-red-50 text-red-700 text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-red-300 bg-red-50 text-red-700 text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
               >
                 {deletingAttachmentId === previewFile.id ? (
                   <Loader2 className="size-4 animate-spin" />
