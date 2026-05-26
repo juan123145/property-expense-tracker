@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { properties, propertyMemberships } from "@/db/schema";
+import { properties, propertyMemberships, transactions } from "@/db/schema";
 import { eq, and, or } from "drizzle-orm";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
@@ -63,7 +63,29 @@ export async function GET(req: NextRequest, { params }: { params: Promise<Params
     }
   }
 
-  const allowed = isUserReceipt || isPropertyImage;
+  // Transaction attachment access: user must have access to the transaction's property
+  let isTransactionAttachment = false;
+  if (key.startsWith(`receipts/`) && !isUserReceipt) {
+    // For receipts folder not owned by current user, check if they have access via property membership
+    // Get all transactions accessible to this user
+    const [txMatch] = await db
+      .select({ id: transactions.id })
+      .from(transactions)
+      .innerJoin(properties, eq(transactions.propertyId, properties.id))
+      .innerJoin(propertyMemberships, and(
+        eq(properties.id, propertyMemberships.propertyId),
+        eq(propertyMemberships.userId, userId),
+        eq(propertyMemberships.status, "ACTIVE")
+      ))
+      .where(eq(transactions.isDeleted, false))
+      .limit(1);
+
+    if (txMatch) {
+      isTransactionAttachment = true;
+    }
+  }
+
+  const allowed = isUserReceipt || isPropertyImage || isTransactionAttachment;
   if (!allowed) {
     return new NextResponse("Forbidden", { status: 403 });
   }

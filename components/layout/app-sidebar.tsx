@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -35,14 +35,14 @@ export function AppSidebar({ needsReviewCount, isAdmin }: Props) {
         "hidden md:flex flex-col shrink-0 border-r bg-card h-screen sticky top-0 transition-all duration-300 ease-in-out",
         isMounted && isCollapsed ? "w-20" : "w-60"
       )}
-      suppressHydrationWarning
+      suppressHydrationWarning={true}
     >
       <div
         className={cn(
           "flex items-center justify-between px-4 py-4 border-b transition-all duration-300",
           isMounted && isCollapsed && "flex-col gap-2"
         )}
-        suppressHydrationWarning
+        suppressHydrationWarning={true}
       >
         {!isMounted || !isCollapsed ? <AppLogo /> : null}
         <button
@@ -78,7 +78,7 @@ export function AppSidebar({ needsReviewCount, isAdmin }: Props) {
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
               title={isMounted && isCollapsed ? label : undefined}
-              suppressHydrationWarning
+              suppressHydrationWarning={true}
             >
               <Icon className="size-5 shrink-0" />
               {!isMounted || !isCollapsed ? (
