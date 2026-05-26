@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { Share2, X, Loader2, Mail, Trash2, Clock, CheckCircle2 } from "lucide-react";
+import { Share2, Loader2, Mail, Trash2, Clock, CheckCircle2, Copy, Check, Link2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { shareProperty, revokeShare } from "@/app/actions/shares";
@@ -20,12 +20,13 @@ type Props = {
   currentShares: ShareRow[];
 };
 
-const INITIAL_STATE = { error: undefined as string | undefined, success: false };
+const INITIAL_STATE = { error: undefined as string | undefined, success: false, inviteUrl: undefined as string | undefined };
 
 export function PropertyShareSheet({ propertyId, propertyName, currentShares }: Props) {
   const [open, setOpen] = useState(false);
   const [shares, setShares] = useState<ShareRow[]>(currentShares);
   const [revoking, startRevoke] = useTransition();
+  const [copied, setCopied] = useState(false);
 
   const [state, formAction, pending] = useActionState(
     async (prev: typeof INITIAL_STATE, formData: FormData) => {
@@ -102,7 +103,34 @@ export function PropertyShareSheet({ propertyId, propertyName, currentShares }: 
                 </div>
               </div>
               {state.error && <p className="text-xs text-destructive">{state.error}</p>}
-              {state.success && <p className="text-xs text-green-600">Invitation sent!</p>}
+              {state.success && state.inviteUrl && (
+                <div className="rounded-lg border bg-muted/50 p-3 space-y-2">
+                  <p className="text-xs font-medium text-green-700 dark:text-green-400 flex items-center gap-1.5">
+                    <Check className="size-3.5" /> Invite created — share this link:
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="flex-1 text-xs text-muted-foreground truncate font-mono bg-background border rounded px-2 py-1">
+                      {state.inviteUrl}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(state.inviteUrl!);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      className="shrink-0 p-1.5 rounded-md border hover:bg-accent transition-colors"
+                      title="Copy link"
+                    >
+                      {copied ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                    <Link2 className="size-3" />
+                    Send this link to {shares.at(-1)?.invitedEmail} so they can accept the invite.
+                  </p>
+                </div>
+              )}
               <Button type="submit" disabled={pending} className="w-full gap-2">
                 {pending ? <Loader2 className="size-4 animate-spin" /> : <Mail className="size-4" />}
                 Send Invitation

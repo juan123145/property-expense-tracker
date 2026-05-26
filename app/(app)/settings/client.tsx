@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { User, HardDrive, Trash2, AlertTriangle, Shield, X, Monitor, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,8 @@ export function SettingsClient({ user, usedKb, quotaKb }: Props) {
   const [deleteInput, setDeleteInput] = useState("");
   const [isPending, startTransition] = useTransition();
   const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const pct = Math.min(100, (usedKb / quotaKb) * 100);
   const isWarning = pct >= 80;
@@ -168,7 +170,7 @@ export function SettingsClient({ user, usedKb, quotaKb }: Props) {
                 onClick={() => setTheme(value)}
                 className={cn(
                   "flex flex-1 flex-col items-center gap-1.5 rounded-lg border px-3 py-3 text-xs font-medium transition-colors",
-                  theme === value
+                  mounted && theme === value
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-border hover:bg-muted text-muted-foreground hover:text-foreground"
                 )}

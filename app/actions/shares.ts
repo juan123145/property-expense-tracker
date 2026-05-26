@@ -19,7 +19,7 @@ const APP_URL = process.env.NEXTAUTH_URL ?? "https://property-expense-tracker.ve
 export async function shareProperty(
   _prev: unknown,
   formData: FormData
-): Promise<{ error?: string; success?: boolean }> {
+): Promise<{ error?: string; success?: boolean; inviteUrl?: string }> {
   const user = await requireAuth();
 
   const propertyId = formData.get("propertyId") as string;
@@ -96,7 +96,7 @@ export async function shareProperty(
   }
 
   revalidatePath(`/properties/${propertyId}`);
-  return { success: true };
+  return { success: true, inviteUrl };
 }
 
 export async function revokeShare(shareId: string): Promise<void> {

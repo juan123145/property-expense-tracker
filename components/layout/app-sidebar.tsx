@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Building2, Receipt, BarChart2, Settings,
+  LayoutDashboard, Building2, Receipt, BarChart2, Settings, LogOut,
 } from "lucide-react";
+import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { AppLogo } from "@/components/brand/logo";
 
@@ -52,6 +53,15 @@ export function AppSidebar({ needsReviewCount }: Props) {
           );
         })}
       </nav>
+      <div className="px-2 py-3 border-t">
+        <button
+          onClick={() => signOut({ callbackUrl: "/login" })}
+          className="flex w-full items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+        >
+          <LogOut className="size-4 shrink-0" />
+          Sign out
+        </button>
+      </div>
     </aside>
   );
 }
