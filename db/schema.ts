@@ -59,10 +59,17 @@ export const transactions = pgTable("transactions", {
   needsReview: boolean("needs_review").default(false),
   isDeleted: boolean("is_deleted").default(false),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedByUserId: text("deleted_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  scheduledPermanentDeleteAt: timestamp("scheduled_permanent_delete_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
+/**
+ * @deprecated Use propertyMemberships and propertyInvitations instead.
+ * This table is kept for backwards compatibility during migration.
+ * Will be removed after all data migrated.
+ */
 export const propertyShares = pgTable("property_shares", {
   id: uuid("id").primaryKey().defaultRandom(),
   propertyId: uuid("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),
@@ -83,6 +90,7 @@ export const transactionAttachments = pgTable("transaction_attachments", {
   name: text("name"),
   sizeKb: integer("size_kb"),
   position: integer("position").notNull().default(0),
+  uploadedByUserId: text("uploaded_by_user_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
