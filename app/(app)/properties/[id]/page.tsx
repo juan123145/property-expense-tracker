@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { PropertyDetailClient } from "@/components/properties/property-detail-client";
 import { PropertyShareSheet } from "@/components/properties/property-share-sheet";
 import { TransactionsTableSection } from "@/app/(app)/transactions/transactions-client";
@@ -91,7 +92,6 @@ async function getPropertyTransactions(propertyId: string, userId: string) {
     .where(
       and(
         eq(transactions.propertyId, propertyId),
-        eq(transactions.userId, userId),
         eq(transactions.isDeleted, false)
       )
     )
@@ -110,7 +110,6 @@ async function getPropertyTransactions(propertyId: string, userId: string) {
     .where(
       and(
         eq(transactions.propertyId, propertyId),
-        eq(transactions.userId, userId),
         eq(transactions.isDeleted, false)
       )
     )
@@ -133,7 +132,6 @@ async function getSummary(propertyId: string, userId: string) {
     .where(
       and(
         eq(transactions.propertyId, propertyId),
-        eq(transactions.userId, userId),
         eq(transactions.isDeleted, false)
       )
     )
@@ -204,13 +202,20 @@ export default async function PropertyDetailPage({ params }: PageProps) {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-col sm:flex-row">
           {isOwner && (
-            <PropertyShareSheet
-              propertyId={property.id}
-              propertyName={property.name}
-              currentShares={currentShares}
-            />
+            <>
+              <Link href={`/properties/${property.id}/manage-access`}>
+                <Button variant="outline" size="sm">
+                  Manage Access
+                </Button>
+              </Link>
+              <PropertyShareSheet
+                propertyId={property.id}
+                propertyName={property.name}
+                currentShares={currentShares}
+              />
+            </>
           )}
           <PropertyDetailClient property={property} units={unitList} userRole={userRole} />
         </div>
