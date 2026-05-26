@@ -11,13 +11,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await requireAuth();
 
   // Gate: if onboarding not complete, redirect to onboarding
-  const [userRow] = await db
-    .select({ onboardingComplete: users.onboardingComplete })
-    .from(users)
-    .where(eq(users.id, user.id))
-    .limit(1);
+  let isOnboardingComplete = false;
+  try {
+    const result = await db
+      .select({ onboardingComplete: users.onboardingComplete })
+      .from(users)
+      .where(eq(users.id, user.id))
+      .limit(1);
+    isOnboardingComplete = result[0]?.onboardingComplete ?? false;
+  } catch {
+    // users table may not exist yet if migration hasn't run, assume not complete
+  }
 
-  if (!userRow?.onboardingComplete) {
+  if (!isOnboardingComplete) {
     redirect("/onboarding");
   }
 

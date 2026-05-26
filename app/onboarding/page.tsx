@@ -10,13 +10,19 @@ export const metadata = { title: "Complete Your Profile" };
 export default async function OnboardingPage() {
   const user = await requireAuth();
 
-  const [existingUser] = await db
-    .select({ onboardingComplete: users.onboardingComplete })
-    .from(users)
-    .where(eq(users.id, user.id))
-    .limit(1);
+  let isOnboardingComplete = false;
+  try {
+    const result = await db
+      .select({ onboardingComplete: users.onboardingComplete })
+      .from(users)
+      .where(eq(users.id, user.id))
+      .limit(1);
+    isOnboardingComplete = result[0]?.onboardingComplete ?? false;
+  } catch {
+    // users table may not exist yet if migration hasn't run
+  }
 
-  if (existingUser?.onboardingComplete) {
+  if (isOnboardingComplete) {
     redirect("/dashboard");
   }
 
