@@ -63,6 +63,7 @@ export function AdminClient({ users, currentUserId }: Props) {
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [userFiles, setUserFiles] = useState<Record<string, FileRow[]>>({});
   const [previewFile, setPreviewFile] = useState<FileRow | null>(null);
+  const [deleteConfirmFile, setDeleteConfirmFile] = useState<FileRow | null>(null);
   const [deleting, startDelete] = useTransition();
   const [deletingAttachment, startDeleteAttachment] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -80,25 +81,31 @@ export function AdminClient({ users, currentUserId }: Props) {
     });
   }
 
-  function handleDeleteFile(attachmentId: string, userId: string) {
+  function handleDeleteFile(file: FileRow) {
+    setDeleteConfirmFile(file);
+  }
+
+  function confirmDeleteFile(file: FileRow) {
     setError(null);
     startDeleteAttachment(async () => {
-      const result = await adminDeleteAttachment(attachmentId);
+      const result = await adminDeleteAttachment(file.id);
       if (result?.error) {
         setError(result.error);
       } else {
         setUserFiles((prev) => ({
           ...prev,
-          [userId]: (prev[userId] || []).filter((f) => f.id !== attachmentId),
+          [file.userId]: (prev[file.userId] || []).filter((f) => f.id !== file.id),
         }));
         setRows((prev) =>
           prev.map((r) =>
-            r.userId === userId
-              ? { ...r, files: r.files.filter((f) => f.id !== attachmentId), fileCount: r.fileCount - 1, storageKb: r.storageKb - (r.files.find(f => f.id === attachmentId)?.sizeKb ?? 0) }
+            r.userId === file.userId
+              ? { ...r, files: r.files.filter((f) => f.id !== file.id), fileCount: r.fileCount - 1, storageKb: r.storageKb - (file.sizeKb ?? 0) }
               : r
           )
         );
       }
+      setDeleteConfirmFile(null);
+      setPreviewFile(null);
     });
   }
 
@@ -366,7 +373,7 @@ export function AdminClient({ users, currentUserId }: Props) {
                         <Download className="size-4" />
                       </a>
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleDeleteFile(file.id, file.userId); }}
+                        onClick={(e) => { e.stopPropagation(); handleDeleteFile(file); }}
                         disabled={deletingAttachmentId === file.id || deletingAttachment}
                         className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
                         title="Delete"
@@ -388,7 +395,7 @@ export function AdminClient({ users, currentUserId }: Props) {
 
       {/* File preview modal */}
       {previewFile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-card rounded-xl border shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b">
@@ -455,10 +462,7 @@ export function AdminClient({ users, currentUserId }: Props) {
                 Download
               </a>
               <button
-                onClick={() => {
-                  handleDeleteFile(previewFile.id, previewFile.userId);
-                  setPreviewFile(null);
-                }}
+                onClick={() => handleDeleteFile(previewFile)}
                 disabled={deletingAttachmentId === previewFile.id || deletingAttachment}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg border border-red-300 bg-red-50 text-red-700 text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
               >
@@ -468,6 +472,55 @@ export function AdminClient({ users, currentUserId }: Props) {
                   <Trash2 className="size-4" />
                 )}
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteConfirmFile && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-card rounded-xl border shadow-xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100">
+                <Trash2 className="size-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-base">Delete File</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">This action cannot be undone</p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3.5 text-sm text-red-700">
+              <p className="font-mono truncate">{deleteConfirmFile.fileName}</p>
+              <p className="text-xs mt-1">{fmtBytes(deleteConfirmFile.sizeKb ?? 0)}</p>
+            </div>
+
+            <div className="flex gap-3 justify-end pt-2">
+              <button
+                onClick={() => setDeleteConfirmFile(null)}
+                disabled={deletingAttachmentId === deleteConfirmFile.id || deletingAttachment}
+                className="px-4 py-2 rounded-lg border text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => confirmDeleteFile(deleteConfirmFile)}
+                disabled={deletingAttachmentId === deleteConfirmFile.id || deletingAttachment}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {deletingAttachmentId === deleteConfirmFile.id ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Deleting…
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="size-4" />
+                    Delete File
+                  </>
+                )}
               </button>
             </div>
           </div>
