@@ -29,32 +29,37 @@ export function AppSidebar({ needsReviewCount, isAdmin }: Props) {
     setIsMounted(true);
   }, []);
 
+  // Always render the full width initially to prevent hydration mismatch
+  const sidebarWidth = isMounted && isCollapsed ? "w-20" : "w-60";
+  const headerLayout = isMounted && isCollapsed ? "flex-col gap-2" : "";
+  const logoDisplay = isMounted && isCollapsed ? "hidden" : "";
+  const buttonMargin = isMounted && isCollapsed ? "ml-0" : "ml-auto";
+
   return (
     <aside
       className={cn(
         "hidden md:flex flex-col shrink-0 border-r bg-card h-screen sticky top-0 transition-all duration-300 ease-in-out",
-        isMounted && isCollapsed ? "w-20" : "w-60"
+        sidebarWidth
       )}
-      suppressHydrationWarning={true}
     >
       <div
         className={cn(
           "flex items-center justify-between px-4 py-4 border-b transition-all duration-300",
-          isMounted && isCollapsed && "flex-col gap-2"
+          headerLayout
         )}
-        suppressHydrationWarning={true}
       >
-        {!isMounted || !isCollapsed ? <AppLogo /> : null}
+        <div className={logoDisplay}>
+          <AppLogo />
+        </div>
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className={cn(
-            "p-1.5 hover:bg-accent rounded-md transition-colors ml-auto",
-            isMounted && isCollapsed && "ml-0"
+            "p-1.5 hover:bg-accent rounded-md transition-colors",
+            buttonMargin
           )}
           title={isCollapsed ? "Expand" : "Collapse"}
-          suppressHydrationWarning
         >
-          {isMounted && isCollapsed ? (
+          {isCollapsed ? (
             <ChevronRight className="size-4" />
           ) : (
             <ChevronLeft className="size-4" />
@@ -66,33 +71,25 @@ export function AppSidebar({ needsReviewCount, isAdmin }: Props) {
         {navItems.map(({ href, label, icon: Icon, hasBadge }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           const badge = hasBadge && needsReviewCount > 0 ? needsReviewCount : null;
+          const labelDisplay = isCollapsed ? "hidden" : "";
+          const containerLayout = isCollapsed ? "flex-col" : "";
           return (
             <Link
               key={href}
               href={href}
               className={cn(
                 "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors justify-center",
-                isMounted && isCollapsed && "flex-col",
+                containerLayout,
                 active
                   ? "bg-primary text-primary-foreground font-medium"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
-              title={isMounted && isCollapsed ? label : undefined}
-              suppressHydrationWarning={true}
+              title={isCollapsed ? label : undefined}
             >
               <Icon className="size-5 shrink-0" />
-              {!isMounted || !isCollapsed ? (
-                <>
-                  <span className="flex-1">{label}</span>
-                  {badge !== null && (
-                    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
-                      {badge > 99 ? "99+" : badge}
-                    </span>
-                  )}
-                </>
-              ) : null}
-              {isMounted && isCollapsed && badge !== null && (
-                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-white">
+              <span className={cn("flex-1", labelDisplay)}>{label}</span>
+              {badge !== null && (
+                <span className={cn("ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white", isCollapsed && "ml-0 h-4 min-w-4 text-[9px]")}>
                   {badge > 99 ? "99+" : badge}
                 </span>
               )}
@@ -103,35 +100,35 @@ export function AppSidebar({ needsReviewCount, isAdmin }: Props) {
       {isAdmin && (
         <div className={cn(
           "px-2 py-3 border-t border-b transition-all duration-300",
-          isMounted && isCollapsed && "flex justify-center"
+          isCollapsed && "flex justify-center"
         )}>
           <Link
             href="/admin"
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-md text-sm text-primary font-medium hover:bg-primary/10 transition-colors border border-primary/20",
-              isMounted && isCollapsed && "flex-col p-1.5"
+              isCollapsed && "flex-col p-1.5"
             )}
-            title={isMounted && isCollapsed ? "Admin" : undefined}
+            title={isCollapsed ? "Admin" : undefined}
           >
             <Shield className="size-4 shrink-0" />
-            {!isMounted || !isCollapsed ? "Admin" : null}
+            <span className={isCollapsed ? "hidden" : ""}>Admin</span>
           </Link>
         </div>
       )}
       <div className={cn(
         "px-2 py-3 border-t transition-all duration-300",
-        isMounted && isCollapsed && "flex justify-center"
+        isCollapsed && "flex justify-center"
       )}>
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors",
-            isMounted && isCollapsed && "flex-col p-1.5"
+            isCollapsed && "flex-col p-1.5"
           )}
-          title={isMounted && isCollapsed ? "Sign out" : undefined}
+          title={isCollapsed ? "Sign out" : undefined}
         >
           <LogOut className="size-4 shrink-0" />
-          {!isMounted || !isCollapsed ? "Sign out" : null}
+          <span className={isCollapsed ? "hidden" : ""}>Sign out</span>
         </button>
       </div>
     </aside>
