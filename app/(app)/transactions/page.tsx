@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { transactions, properties, units, transactionAttachments, propertyMemberships } from "@/db/schema";
-import { eq, and, desc, asc, inArray, or, sql } from "drizzle-orm";
+import { eq, and, desc, asc, inArray, or, isNull } from "drizzle-orm";
 import { TransactionsClient } from "./transactions-client";
 
 async function getAccessiblePropertyIds(userId: string) {
@@ -27,10 +27,6 @@ async function getAccessiblePropertyIds(userId: string) {
 async function getTransactions(userId: string) {
   const accessibleIds = await getAccessiblePropertyIds(userId);
 
-  if (accessibleIds.length === 0) {
-    return [];
-  }
-
   return db
     .select({
       id: transactions.id,
@@ -51,16 +47,20 @@ async function getTransactions(userId: string) {
     .from(transactions)
     .leftJoin(properties, eq(transactions.propertyId, properties.id))
     .leftJoin(units, eq(transactions.unitId, units.id))
-    .where(and(inArray(transactions.propertyId, accessibleIds), eq(transactions.isDeleted, false)))
+    .where(
+      and(
+        eq(transactions.isDeleted, false),
+        or(
+          accessibleIds.length > 0 ? inArray(transactions.propertyId, accessibleIds) : undefined,
+          eq(transactions.userId, userId)
+        )
+      )
+    )
     .orderBy(desc(transactions.date), desc(transactions.createdAt));
 }
 
 async function getTrashedTransactions(userId: string) {
   const accessibleIds = await getAccessiblePropertyIds(userId);
-
-  if (accessibleIds.length === 0) {
-    return [];
-  }
 
   return db
     .select({
@@ -79,16 +79,20 @@ async function getTrashedTransactions(userId: string) {
     .from(transactions)
     .leftJoin(properties, eq(transactions.propertyId, properties.id))
     .leftJoin(units, eq(transactions.unitId, units.id))
-    .where(and(inArray(transactions.propertyId, accessibleIds), eq(transactions.isDeleted, true)))
+    .where(
+      and(
+        eq(transactions.isDeleted, true),
+        or(
+          accessibleIds.length > 0 ? inArray(transactions.propertyId, accessibleIds) : undefined,
+          eq(transactions.userId, userId)
+        )
+      )
+    )
     .orderBy(desc(transactions.deletedAt));
 }
 
 async function getAttachments(userId: string) {
   const accessibleIds = await getAccessiblePropertyIds(userId);
-
-  if (accessibleIds.length === 0) {
-    return [];
-  }
 
   return db
     .select({
@@ -100,7 +104,15 @@ async function getAttachments(userId: string) {
     })
     .from(transactionAttachments)
     .innerJoin(transactions, eq(transactionAttachments.transactionId, transactions.id))
-    .where(and(inArray(transactions.propertyId, accessibleIds), eq(transactions.isDeleted, false)))
+    .where(
+      and(
+        eq(transactions.isDeleted, false),
+        or(
+          accessibleIds.length > 0 ? inArray(transactions.propertyId, accessibleIds) : undefined,
+          eq(transactions.userId, userId)
+        )
+      )
+    )
     .orderBy(transactionAttachments.transactionId, asc(transactionAttachments.position));
 }
 

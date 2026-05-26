@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { transactions, transactionAttachments, users } from "@/db/schema";
-import { eq, sum } from "drizzle-orm";
+import { transactions, transactionAttachments, users, storageOwnerships } from "@/db/schema";
+import { eq, sum, and, isNull } from "drizzle-orm";
 import { SettingsClient } from "./client";
 
 const QUOTA_KB = 500 * 1024; // 500 MB
@@ -11,10 +11,12 @@ export default async function SettingsPage() {
 
   const [storageRow, userProfile] = await Promise.all([
     db
-      .select({ totalKb: sum(transactionAttachments.sizeKb) })
-      .from(transactionAttachments)
-      .innerJoin(transactions, eq(transactionAttachments.transactionId, transactions.id))
-      .where(eq(transactions.userId, user.id))
+      .select({ totalBytes: sum(storageOwnerships.sizeBytes) })
+      .from(storageOwnerships)
+      .where(and(
+        eq(storageOwnerships.ownerId, user.id),
+        isNull(storageOwnerships.deletedAt)
+      ))
       .then((r) => r[0]),
     db
       .select({ username: users.username, phone: users.phone })
@@ -24,7 +26,7 @@ export default async function SettingsPage() {
       .then((r) => r[0]),
   ]);
 
-  const usedKb = Number(storageRow?.totalKb ?? 0);
+  const usedKb = Math.round((Number(storageRow?.totalBytes ?? 0)) / 1024);
 
   return (
     <SettingsClient
