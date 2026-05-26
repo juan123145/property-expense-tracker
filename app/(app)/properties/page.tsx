@@ -1,6 +1,6 @@
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { properties, units, transactions, propertyShares } from "@/db/schema";
+import { properties, units, transactions, propertyMemberships } from "@/db/schema";
 import { eq, and, count, sum, sql, inArray } from "drizzle-orm";
 import { PropertiesClient } from "./properties-client";
 
@@ -58,22 +58,22 @@ async function getPropertiesWithStats(userId: string, includeArchived = false) {
 }
 
 async function getSharedProperties(userId: string) {
-  const shares = await db
-    .select({ propertyId: propertyShares.propertyId, permission: propertyShares.permission })
-    .from(propertyShares)
-    .where(and(eq(propertyShares.sharedWithUserId, userId), eq(propertyShares.status, "accepted")));
+  const memberships = await db
+    .select({ propertyId: propertyMemberships.propertyId, role: propertyMemberships.role })
+    .from(propertyMemberships)
+    .where(and(eq(propertyMemberships.userId, userId), eq(propertyMemberships.status, "ACTIVE"), sql`${propertyMemberships.role} != 'OWNER'`));
 
-  if (shares.length === 0) return [];
+  if (memberships.length === 0) return [];
 
-  const ids = shares.map((s) => s.propertyId);
-  const permMap = Object.fromEntries(shares.map((s) => [s.propertyId, s.permission]));
+  const ids = memberships.map((m) => m.propertyId);
+  const roleMap = Object.fromEntries(memberships.map((m) => [m.propertyId, m.role]));
 
   const rows = await db
     .select({ id: properties.id, name: properties.name, address: properties.address, city: properties.city, state: properties.state, type: properties.type, isArchived: properties.isArchived, imageUrl: properties.imageUrl, createdAt: properties.createdAt })
     .from(properties)
     .where(and(inArray(properties.id, ids), eq(properties.isArchived, false)));
 
-  return rows.map((p) => ({ ...p, unitCount: 0, totalExpenses: 0, sharedPermission: permMap[p.id] ?? "view" }));
+  return rows.map((p) => ({ ...p, unitCount: 0, totalExpenses: 0, sharedPermission: roleMap[p.id] === "EDITOR" ? "edit" : "view" }));
 }
 
 export default async function PropertiesPage() {

@@ -1,11 +1,11 @@
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { propertyInvitations, properties } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { acceptInvite } from "@/app/actions/shares";
-import { Building2, CheckCircle2, XCircle } from "lucide-react";
+import { Building2, CheckCircle2, XCircle, Check, X } from "lucide-react";
 import Link from "next/link";
+import { InvitationClient } from "@/components/invite/invitation-client";
 
 type Props = { params: Promise<{ token: string }> };
 
@@ -50,13 +50,17 @@ export default async function InvitePage({ params }: Props) {
     return <InviteResult icon="error" title="Invitation canceled" message="This invitation has been canceled by the property owner." />;
   }
 
-  // Auto-accept the PENDING invitation
-  const result = await acceptInvite(token);
-  if (result.error) {
-    return <InviteResult icon="error" title="Could not accept invitation" message={result.error} />;
-  }
-
-  redirect(`/properties/${result.propertyId}`);
+  // Show invitation details with accept/decline buttons (PENDING status)
+  return (
+    <InvitationClient
+      token={token}
+      propertyName={invitation.propertyName}
+      role={invitation.role}
+      expiresAt={invitation.expiresAt}
+      invitedEmail={invitation.invitedEmail}
+      userEmail={user.email}
+    />
+  );
 }
 
 function InviteResult({ icon, title, message }: { icon: "success" | "error"; title: string; message: string }) {
