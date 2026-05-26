@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
 import { AddTransactionSheet } from "@/components/transactions/add-transaction-sheet";
 
@@ -14,13 +15,16 @@ type Props = {
 
 export function QuickAddFAB({ properties, allUnits }: Props) {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+
+  if (!pathname.startsWith("/transactions")) return null;
 
   return (
     <>
       <button
         onClick={() => setOpen(true)}
         aria-label="Add transaction"
-        className="md:hidden fixed bottom-20 right-4 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all"
+        className="md:hidden fixed bottom-24 right-4 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all"
       >
         <Plus className="size-6" />
       </button>

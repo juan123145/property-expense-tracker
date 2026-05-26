@@ -83,12 +83,12 @@ export function MobileBottomNav({ needsReviewCount }: Props) {
             key={href}
             href={href}
             className={cn(
-              "relative flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors",
+              "relative flex flex-1 flex-col items-center justify-center gap-1.5 py-3 text-[11px] font-medium transition-colors",
               active ? "text-primary" : "text-muted-foreground"
             )}
           >
             <div className="relative">
-              <Icon className={cn("size-5", active ? "text-primary" : "text-muted-foreground")} />
+              <Icon className={cn("size-6", active ? "text-primary" : "text-muted-foreground")} />
               {badge !== null && (
                 <span className="absolute -top-1 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-0.5 text-[9px] font-bold text-white">
                   {badge > 99 ? "99+" : badge}
