@@ -2,7 +2,8 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { useTheme } from "next-themes";
-import { User, HardDrive, Trash2, AlertTriangle, Shield, X, Monitor, Sun, Moon } from "lucide-react";
+import { signOut } from "next-auth/react";
+import { User, HardDrive, Trash2, AlertTriangle, Shield, X, Monitor, Sun, Moon, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { deleteAccount } from "./actions";
 
@@ -96,6 +97,16 @@ export function SettingsClient({ user, usedKb, quotaKb }: Props) {
               </a>
             </p>
           </div>
+        </div>
+        {/* Sign out — shown on mobile where the sidebar button isn't visible */}
+        <div className="md:hidden px-5 pb-4">
+          <button
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          >
+            <LogOut className="size-4" />
+            Sign out
+          </button>
         </div>
       </section>
 
