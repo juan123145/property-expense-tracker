@@ -6,14 +6,8 @@ import { properties, propertyShares } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
-import { Resend } from "resend";
+import { sendEmail } from "@/lib/email";
 
-function getResend() {
-  if (!process.env.RESEND_API_KEY) return null;
-  return new Resend(process.env.RESEND_API_KEY);
-}
-
-const FROM_EMAIL = "noreply@propertytracker.app";
 const APP_URL = process.env.NEXTAUTH_URL ?? "https://property-expense-tracker.vercel.app";
 
 export async function shareProperty(
@@ -68,31 +62,26 @@ export async function shareProperty(
     return { error: "Failed to create share. Please try again." };
   }
 
-  // Send invite email
-  const resend = getResend();
+  // Send invite email (non-fatal if it fails or Resend is not configured)
   const inviteUrl = `${APP_URL}/invite/${token}`;
-  if (resend) {
-    try {
-      await resend.emails.send({
-        from: FROM_EMAIL,
-        to: email,
-        subject: `${user.name ?? "Someone"} shared a property with you — Property Tracker`,
-        html: `
-          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;">
-            <h2 style="color:#1a2744">Property shared with you</h2>
-            <p><strong>${user.name ?? user.email}</strong> has shared the property <strong>${property.name}</strong> with you on Property Tracker.</p>
-            <p>You have been granted <strong>${permission === "edit" ? "Edit" : "View Only"}</strong> access.</p>
-            <p style="margin:24px 0">
-              <a href="${inviteUrl}" style="background:#1a2744;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">Accept Invitation</a>
-            </p>
-            <p style="color:#666;font-size:13px">If you did not expect this invitation, you can ignore this email.</p>
-          </div>
-        `,
-      });
-    } catch (emailErr) {
-      console.error("shareProperty email:", emailErr);
-      // Don't fail the action if email fails — share was created
-    }
+  try {
+    await sendEmail({
+      to: email,
+      subject: `${user.name ?? "Someone"} shared a property with you — Property Tracker`,
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;">
+          <h2 style="color:#1a2744">Property shared with you</h2>
+          <p><strong>${user.name ?? user.email}</strong> has shared the property <strong>${property.name}</strong> with you on Property Tracker.</p>
+          <p>You have been granted <strong>${permission === "edit" ? "Edit" : "View Only"}</strong> access.</p>
+          <p style="margin:24px 0">
+            <a href="${inviteUrl}" style="background:#1a2744;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">Accept Invitation</a>
+          </p>
+          <p style="color:#666;font-size:13px">If you did not expect this invitation, you can ignore this email.</p>
+        </div>
+      `,
+    });
+  } catch (emailErr) {
+    console.error("shareProperty email:", emailErr);
   }
 
   revalidatePath(`/properties/${propertyId}`);
