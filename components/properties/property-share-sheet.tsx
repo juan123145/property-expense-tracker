@@ -4,7 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 import { Share2, Loader2, Mail, Trash2, Clock, CheckCircle2, Copy, Check, Link2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { shareProperty, revokeShare } from "@/app/actions/shares";
+import { shareProperty, revokeAccess } from "@/app/actions/shares";
 import { cn } from "@/lib/utils";
 
 type ShareRow = {
@@ -33,12 +33,12 @@ export function PropertyShareSheet({ propertyId, propertyName, currentShares }: 
       formData.set("propertyId", propertyId);
       const result = await shareProperty(prev, formData);
       if (result.success) {
-        // Optimistically add the new pending share to local state
+        // Optimistically add the new pending invitation to local state
         const email = (formData.get("email") as string)?.toLowerCase().trim();
-        const permission = formData.get("permission") as string;
+        const role = formData.get("role") as string;
         setShares((prev) => [
           ...prev.filter((s) => s.invitedEmail !== email),
-          { id: crypto.randomUUID(), invitedEmail: email, permission, status: "pending" },
+          { id: crypto.randomUUID(), invitedEmail: email, permission: role, status: "pending" },
         ]);
       }
       return result as typeof INITIAL_STATE;
@@ -48,7 +48,7 @@ export function PropertyShareSheet({ propertyId, propertyName, currentShares }: 
 
   function handleRevoke(shareId: string) {
     startRevoke(async () => {
-      await revokeShare(shareId);
+      await revokeAccess(shareId);
       setShares((prev) => prev.filter((s) => s.id !== shareId));
     });
   }
@@ -86,14 +86,14 @@ export function PropertyShareSheet({ propertyId, propertyName, currentShares }: 
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Permission</label>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Role</label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { value: "view", label: "View Only", desc: "Can see transactions, cannot add or edit" },
-                    { value: "edit", label: "Can Edit", desc: "Can add, edit, and delete transactions" },
+                    { value: "VIEWER", label: "Viewer", desc: "Can see transactions only" },
+                    { value: "EDITOR", label: "Editor", desc: "Can add, edit, delete transactions" },
                   ].map(({ value, label, desc }) => (
                     <label key={value} className="relative cursor-pointer">
-                      <input type="radio" name="permission" value={value} defaultChecked={value === "view"} className="sr-only peer" />
+                      <input type="radio" name="role" value={value} defaultChecked={value === "VIEWER"} className="sr-only peer" />
                       <div className="rounded-lg border p-3 text-xs peer-checked:border-primary peer-checked:bg-primary/5 transition-colors">
                         <p className="font-semibold peer-checked:text-primary">{label}</p>
                         <p className="text-muted-foreground mt-0.5">{desc}</p>
@@ -101,6 +101,12 @@ export function PropertyShareSheet({ propertyId, propertyName, currentShares }: 
                     </label>
                   ))}
                 </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input type="checkbox" name="canShare" value="true" className="rounded border" />
+                  <span className="text-sm text-muted-foreground">Allow them to share with others</span>
+                </label>
               </div>
               {state.error && <p className="text-xs text-destructive">{state.error}</p>}
               {state.success && state.inviteUrl && (
@@ -155,7 +161,7 @@ export function PropertyShareSheet({ propertyId, propertyName, currentShares }: 
                         )}
                         <span className="text-xs text-muted-foreground">
                           {share.status === "accepted" ? "Accepted · " : "Pending · "}
-                          {share.permission === "edit" ? "Can Edit" : "View Only"}
+                          {share.permission === "EDITOR" || share.permission === "edit" ? "Editor" : "Viewer"}
                         </span>
                       </div>
                     </div>
