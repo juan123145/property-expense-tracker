@@ -45,6 +45,7 @@ async function getTransactions(userId: string) {
       notes: transactions.notes,
       needsReview: transactions.needsReview,
       propertyName: properties.name,
+      propertyImage: properties.imageUrl,
       unitName: units.name,
     })
     .from(transactions)
@@ -72,6 +73,7 @@ async function getTrashedTransactions(userId: string) {
       subcategory: transactions.subcategory,
       deletedAt: transactions.deletedAt,
       propertyName: properties.name,
+      propertyImage: properties.imageUrl,
       unitName: units.name,
     })
     .from(transactions)
@@ -110,7 +112,7 @@ async function getProperties(userId: string) {
   }
 
   return db
-    .select({ id: properties.id, name: properties.name })
+    .select({ id: properties.id, name: properties.name, imageUrl: properties.imageUrl })
     .from(properties)
     .where(and(inArray(properties.id, accessibleIds), eq(properties.isArchived, false)));
 }
