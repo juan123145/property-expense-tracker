@@ -30,33 +30,97 @@ export async function createInvitation(input: {
 
   const normalizedEmail = input.invitedEmail.toLowerCase().trim();
 
-  const [invitation] = await db
-    .insert(propertyInvitations)
-    .values({
-      propertyId: input.propertyId,
-      invitedEmail: normalizedEmail,
-      invitedByUserId: input.invitedByUserId,
-      role: input.role,
-      canShare: input.canShare,
-      status: "PENDING",
-      token,
-      expiresAt,
-    })
-    .onConflictDoUpdate({
-      target: [propertyInvitations.propertyId, propertyInvitations.invitedEmail],
-      set: {
+  try {
+    // Try insert with upsert (if unique constraint exists)
+    const [invitation] = await db
+      .insert(propertyInvitations)
+      .values({
+        propertyId: input.propertyId,
+        invitedEmail: normalizedEmail,
+        invitedByUserId: input.invitedByUserId,
         role: input.role,
         canShare: input.canShare,
         status: "PENDING",
         token,
         expiresAt,
-        respondedAt: null,
-        tokenUsedByUserId: null,
-      },
-    })
-    .returning();
+      })
+      .onConflictDoUpdate({
+        target: [propertyInvitations.propertyId, propertyInvitations.invitedEmail],
+        set: {
+          role: input.role,
+          canShare: input.canShare,
+          status: "PENDING",
+          token,
+          expiresAt,
+          respondedAt: null,
+          tokenUsedByUserId: null,
+        },
+      })
+      .returning();
 
-  return { token, invitation, expiresAt };
+    return { token, invitation, expiresAt };
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+
+    // If unique constraint doesn't exist, try manual update
+    if (
+      errorMessage.includes("not found") ||
+      errorMessage.includes("Conflict target") ||
+      errorMessage.includes("does not exist")
+    ) {
+      // Unique constraint doesn't exist in production DB
+      // Try to find and update existing invitation
+      const [existing] = await db
+        .select()
+        .from(propertyInvitations)
+        .where(
+          and(
+            eq(propertyInvitations.propertyId, input.propertyId),
+            eq(propertyInvitations.invitedEmail, normalizedEmail)
+          )
+        )
+        .limit(1);
+
+      if (existing) {
+        // Update existing invitation
+        const [updated] = await db
+          .update(propertyInvitations)
+          .set({
+            role: input.role,
+            canShare: input.canShare,
+            status: "PENDING",
+            token,
+            expiresAt,
+            respondedAt: null,
+            tokenUsedByUserId: null,
+          })
+          .where(eq(propertyInvitations.id, existing.id))
+          .returning();
+
+        return { token, invitation: updated, expiresAt };
+      } else {
+        // Create new invitation
+        const [created] = await db
+          .insert(propertyInvitations)
+          .values({
+            propertyId: input.propertyId,
+            invitedEmail: normalizedEmail,
+            invitedByUserId: input.invitedByUserId,
+            role: input.role,
+            canShare: input.canShare,
+            status: "PENDING",
+            token,
+            expiresAt,
+          })
+          .returning();
+
+        return { token, invitation: created, expiresAt };
+      }
+    }
+
+    // Re-throw if it's a different error
+    throw err;
+  }
 }
 
 /**

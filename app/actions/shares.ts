@@ -69,13 +69,38 @@ export async function shareProperty(
 
   try {
     // Create invitation
-    const { token } = await createInvitation({
-      propertyId,
-      invitedEmail: email,
-      invitedByUserId: user.id,
-      role,
-      canShare,
-    });
+    let token: string;
+    try {
+      const result = await createInvitation({
+        propertyId,
+        invitedEmail: email,
+        invitedByUserId: user.id,
+        role,
+        canShare,
+      });
+      token = result.token;
+    } catch (invitationErr) {
+      console.error("createInvitation failed:", {
+        propertyId,
+        email,
+        role,
+        canShare,
+        error: invitationErr instanceof Error ? invitationErr.message : String(invitationErr),
+        stack: invitationErr instanceof Error ? invitationErr.stack : undefined,
+      });
+
+      const errorMessage = invitationErr instanceof Error ? invitationErr.message : "Unknown invitation creation error";
+
+      // Provide user-friendly error based on actual error
+      if (errorMessage.includes("unique constraint") || errorMessage.includes("duplicate")) {
+        return { error: "This user already has a pending invitation or accepted access to this property." };
+      }
+      if (errorMessage.includes("foreign key")) {
+        return { error: "Invalid property or user. Please refresh and try again." };
+      }
+
+      return { error: `Failed to create invitation: ${errorMessage}` };
+    }
 
     // Send email
     const inviteUrl = `${APP_URL}/invite/${token}`;
@@ -96,14 +121,20 @@ export async function shareProperty(
         `,
       });
     } catch (emailErr) {
-      console.error("shareProperty email:", emailErr);
+      console.error("shareProperty email:", {
+        email,
+        error: emailErr instanceof Error ? emailErr.message : String(emailErr),
+      });
       // Non-fatal if email fails
     }
 
     revalidatePath(`/properties/${propertyId}`);
     return { success: true, inviteUrl };
   } catch (err) {
-    console.error("shareProperty:", err);
+    console.error("shareProperty unexpected error:", {
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
     return { error: "Failed to create invitation. Please try again." };
   }
 }
