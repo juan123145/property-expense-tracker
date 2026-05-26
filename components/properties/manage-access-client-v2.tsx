@@ -229,97 +229,74 @@ export function ManageAccessClientV2({
 
                   <div className="flex items-center gap-6 shrink-0">
                     <div className="flex flex-col gap-4 items-end">
-                    {member.role === "OWNER" ? (
-                      // Owner: show badge with full description
-                      <div className="flex flex-col items-end gap-2 max-w-xs">
-                        <div className="flex flex-col gap-1 w-full">
-                          <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Role</label>
-                          <Badge variant="default" className="bg-green-600 text-white px-3 py-2 text-xs font-semibold w-fit">
-                            Owner (Locked)
+                    <div className="flex flex-col gap-3 items-start flex-1">
+                      {member.role === "OWNER" ? (
+                        // Owner: horizontal layout
+                        <div className="flex items-center gap-4">
+                          <div className="text-xs font-medium text-muted-foreground uppercase min-w-fit">Role</div>
+                          <Badge variant="default" className="bg-green-600 text-white px-3 py-1 text-[11px] font-semibold">
+                            Owner
                           </Badge>
+                          <div className="text-[10px] text-muted-foreground">Full control</div>
                         </div>
-                        <div className="bg-green-50 dark:bg-green-950/30 rounded-md p-2 border border-green-200 dark:border-green-900 w-full">
-                          <p className="text-xs text-green-900 dark:text-green-100 font-medium">
-                            Full control — Can edit property, invite people, manage all settings, and delete the property
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-4 w-full max-w-xs">
-                        {member.role && (
-                          <div className="flex flex-col gap-3">
-                            <div>
-                              <label className="text-xs font-semibold text-foreground uppercase tracking-wide block mb-2">Role</label>
-                              <Select
-                                value={member.role}
-                                onValueChange={(role) =>
-                                  handleRoleChange(
-                                    member.id,
-                                    role as "EDITOR" | "VIEWER",
-                                    member.canShare ?? false
-                                  )
-                                }
-                                disabled={updating === member.id}
-                              >
-                                <SelectTrigger className="w-full h-10 bg-muted/50 border border-primary/20">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="EDITOR">
-                                    <div className="flex flex-col">
-                                      <span className="font-medium">Editor</span>
-                                      <span className="text-xs text-muted-foreground">Can edit, create, and view</span>
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="VIEWER">
-                                    <div className="flex flex-col">
-                                      <span className="font-medium">Viewer</span>
-                                      <span className="text-xs text-muted-foreground">Can only view (read-only)</span>
-                                    </div>
-                                  </SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="bg-blue-50 dark:bg-blue-950/30 rounded-md p-2.5 border border-blue-200 dark:border-blue-900">
-                              <p className="text-xs text-blue-900 dark:text-blue-100 font-medium">
-                                {member.role === "EDITOR"
-                                  ? "Editors can make changes to the property, create transactions, and view all data."
-                                  : "Viewers can only see the property data but cannot make any changes."}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="flex flex-col gap-2">
-                          <label className="flex items-start gap-3 cursor-pointer p-3 rounded-md hover:bg-muted/50 transition-colors border border-transparent hover:border-primary/20">
-                            <input
-                              type="checkbox"
-                              checked={member.canShare ?? false}
-                              onChange={(e) =>
+                      ) : (
+                        <>
+                          {/* Role row */}
+                          <div className="flex items-center gap-4 w-full">
+                            <div className="text-xs font-medium text-muted-foreground uppercase min-w-fit">Role</div>
+                            <Select
+                              value={member.role}
+                              onValueChange={(role) =>
                                 handleRoleChange(
                                   member.id,
-                                  (member.role ?? "VIEWER") as "EDITOR" | "VIEWER",
-                                  e.target.checked
+                                  role as "EDITOR" | "VIEWER",
+                                  member.canShare ?? false
                                 )
                               }
                               disabled={updating === member.id}
-                              className="rounded border-2 mt-0.5 cursor-pointer"
-                            />
-                            <div className="flex flex-col gap-1">
-                              <span className="text-xs font-semibold text-foreground">Can Share This Property</span>
-                              <span className="text-xs text-muted-foreground">Allow this member to invite others and manage access</span>
+                            >
+                              <SelectTrigger className="w-48 h-9 bg-muted/50 border border-primary/20 text-sm">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="EDITOR">
+                                  <span className="text-sm">Editor</span>
+                                </SelectItem>
+                                <SelectItem value="VIEWER">
+                                  <span className="text-sm">Viewer</span>
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <div className="text-[10px] text-muted-foreground">
+                              {member.role === "EDITOR" ? "Can edit & create" : "Read-only"}
                             </div>
-                          </label>
-                          <div className="bg-amber-50 dark:bg-amber-950/30 rounded-md p-2.5 border border-amber-200 dark:border-amber-900 ml-3">
-                            <p className="text-xs text-amber-900 dark:text-amber-100 font-medium">
-                              {member.canShare
-                                ? "This member CAN invite others and manage who has access to this property."
-                                : "This member CANNOT invite others. Only you and people you invite can access."}
-                            </p>
                           </div>
-                        </div>
-                      </div>
-                    )}
+
+                          {/* Can Share row */}
+                          <div className="flex items-center gap-4 w-full">
+                            <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-muted-foreground uppercase min-w-fit">
+                              <input
+                                type="checkbox"
+                                checked={member.canShare ?? false}
+                                onChange={(e) =>
+                                  handleRoleChange(
+                                    member.id,
+                                    (member.role ?? "VIEWER") as "EDITOR" | "VIEWER",
+                                    e.target.checked
+                                  )
+                                }
+                                disabled={updating === member.id}
+                                className="rounded border-2 cursor-pointer size-4"
+                              />
+                              Can Share
+                            </label>
+                            <div className="text-[10px] text-muted-foreground">
+                              {member.canShare ? "Can invite others" : "Cannot invite"}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
                     </div>
 
                     {member.role !== "OWNER" && (

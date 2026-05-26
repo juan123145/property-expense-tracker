@@ -81,6 +81,7 @@ async function getPropertyTransactions(propertyId: string, userId: string) {
       notes: transactions.notes,
       needsReview: transactions.needsReview,
       propertyName: properties.name,
+      propertyImage: properties.imageUrl,
       unitName: units.name,
     })
     .from(transactions)

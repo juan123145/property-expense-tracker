@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode } from "react";
+import React, { createContext, useContext, ReactNode, useState } from "react";
 
 type SidebarContextType = {
   isCollapsed: boolean;
@@ -22,7 +22,7 @@ export function SidebarProvider({
   children: ReactNode;
   defaultCollapsed?: boolean;
 }) {
-  const [isCollapsed, setIsCollapsed] = React.useState(defaultCollapsed);
+  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
 
   return (
     <SidebarContext.Provider value={{ isCollapsed, setIsCollapsed }}>
