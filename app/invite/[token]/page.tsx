@@ -30,27 +30,40 @@ export default async function InvitePage({ params }: Props) {
     .limit(1);
 
   if (!invitation) {
-    return <InviteResult icon="error" title="Invitation not found" message="This link is invalid or has expired." />;
+    console.error("❌ Invitation not found for token:", token);
+    return <InviteResult icon="error" title="Invitation not found" message="This link is invalid or has expired. Check browser console for details." />;
   }
+
+  console.log("✅ Invitation found:", { token, status: invitation.status, propertyName: invitation.propertyName });
 
   // Check if expired
   if (invitation.status === "EXPIRED") {
+    console.warn("⏰ Invitation expired:", token);
     return <InviteResult icon="error" title="Invitation expired" message="This invitation has expired. Please ask the property owner to send you a new one." />;
   }
 
   if (invitation.status === "ACCEPTED") {
+    console.log("✅ Invitation already accepted, redirecting to property");
     redirect(`/properties/${invitation.propertyId}`);
   }
 
   if (invitation.status === "DECLINED") {
+    console.warn("❌ Invitation was declined:", token);
     return <InviteResult icon="error" title="Invitation declined" message="You previously declined this invitation." />;
   }
 
   if (invitation.status === "CANCELED") {
+    console.warn("❌ Invitation was canceled:", token);
     return <InviteResult icon="error" title="Invitation canceled" message="This invitation has been canceled by the property owner." />;
   }
 
   // Show invitation details with accept/decline buttons (PENDING status)
+  console.log("📋 Showing accept/decline UI for pending invitation:", {
+    token,
+    propertyName: invitation.propertyName,
+    role: invitation.role,
+  });
+
   return (
     <InvitationClient
       token={token}
