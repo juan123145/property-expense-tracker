@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Trash2, Loader2, Shield, Users, Building2, Receipt, HardDrive, AlertTriangle, ChevronDown, Download, Search, ArrowUpDown, ChevronLeft } from "lucide-react";
+import { Trash2, Loader2, Shield, Users, Building2, Receipt, HardDrive, AlertTriangle, ChevronDown, Download, Search, ArrowUpDown, ChevronLeft, X, FileX } from "lucide-react";
 import Link from "next/link";
 import { adminDeleteUser, adminDeleteAttachment } from "./actions";
 import { Input } from "@/components/ui/input";
@@ -47,6 +47,13 @@ function truncateId(id: string): string {
   return id.length > 20 ? `${id.slice(0, 10)}…${id.slice(-8)}` : id;
 }
 
+function isPreviewable(fileName: string | null): boolean {
+  if (!fileName) return false;
+  const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
+  const previewableExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf'];
+  return previewableExts.includes(ext);
+}
+
 export function AdminClient({ users, currentUserId }: Props) {
   const [rows, setRows] = useState(users);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -55,6 +62,7 @@ export function AdminClient({ users, currentUserId }: Props) {
   const [fileSort, setFileSort] = useState<"size" | "date" | "name">("size");
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [userFiles, setUserFiles] = useState<Record<string, FileRow[]>>({});
+  const [previewFile, setPreviewFile] = useState<FileRow | null>(null);
   const [deleting, startDelete] = useTransition();
   const [deletingAttachment, startDeleteAttachment] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -326,12 +334,13 @@ export function AdminClient({ users, currentUserId }: Props) {
                 </p>
               ) : (
                 sortedFiles.map((file) => (
-                  <div
+                  <button
                     key={file.id}
-                    className="flex items-center justify-between gap-2 p-3 rounded-md bg-muted/50 hover:bg-muted transition-colors group"
+                    onClick={() => setPreviewFile(file)}
+                    className="w-full flex items-center justify-between gap-2 p-3 rounded-md bg-muted/50 hover:bg-muted transition-colors group text-left"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate" title={file.fileName ?? "unnamed"}>
+                      <p className="text-xs font-medium truncate cursor-pointer hover:underline" title={file.fileName ?? "unnamed"}>
                         {file.fileName || "unnamed"}
                       </p>
                       <div className="flex gap-2 text-[11px] text-muted-foreground mt-1">
@@ -346,7 +355,7 @@ export function AdminClient({ users, currentUserId }: Props) {
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                       <a
                         href={file.url}
                         target="_blank"
@@ -357,7 +366,7 @@ export function AdminClient({ users, currentUserId }: Props) {
                         <Download className="size-4" />
                       </a>
                       <button
-                        onClick={() => handleDeleteFile(file.id, file.userId)}
+                        onClick={(e) => { e.stopPropagation(); handleDeleteFile(file.id, file.userId); }}
                         disabled={deletingAttachmentId === file.id || deletingAttachment}
                         className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
                         title="Delete"
@@ -369,13 +378,101 @@ export function AdminClient({ users, currentUserId }: Props) {
                         )}
                       </button>
                     </div>
-                  </div>
+                  </button>
                 ))
               )}
             </div>
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* File preview modal */}
+      {previewFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-card rounded-xl border shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm truncate">{previewFile.fileName}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {fmtBytes(previewFile.sizeKb ?? 0)} • {new Date(previewFile.txDate).toLocaleDateString()}
+                </p>
+              </div>
+              <button
+                onClick={() => setPreviewFile(null)}
+                className="ml-4 p-1.5 rounded-md text-muted-foreground hover:bg-muted transition-colors"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-auto flex items-center justify-center bg-muted/30 p-6">
+              {isPreviewable(previewFile.fileName) ? (
+                previewFile.fileName?.toLowerCase().endsWith('.pdf') ? (
+                  <iframe
+                    src={previewFile.url}
+                    className="w-full h-full rounded-md border"
+                    title="PDF Preview"
+                  />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={previewFile.url}
+                    alt={previewFile.fileName ?? "File preview"}
+                    className="max-w-full max-h-full object-contain rounded-md"
+                  />
+                )
+              ) : (
+                <div className="flex flex-col items-center gap-4">
+                  <div className="flex items-center justify-center w-16 h-16 rounded-lg bg-muted">
+                    <FileX className="size-8 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm font-medium text-muted-foreground">File not compatible for preview</p>
+                  <p className="text-xs text-muted-foreground max-w-xs text-center">
+                    This file type cannot be opened in the browser. Click the download button below to save it.
+                  </p>
+                  <a
+                    href={previewFile.url}
+                    download={previewFile.fileName ?? "file"}
+                    className="flex items-center gap-2 mt-4 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+                  >
+                    <Download className="size-4" />
+                    Download File
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Footer with actions */}
+            <div className="flex items-center justify-between px-6 py-4 border-t gap-2">
+              <a
+                href={previewFile.url}
+                download={previewFile.fileName ?? "file"}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
+              >
+                <Download className="size-4" />
+                Download
+              </a>
+              <button
+                onClick={() => {
+                  handleDeleteFile(previewFile.id, previewFile.userId);
+                  setPreviewFile(null);
+                }}
+                disabled={deletingAttachmentId === previewFile.id || deletingAttachment}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-red-300 bg-red-50 text-red-700 text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
+              >
+                {deletingAttachmentId === previewFile.id ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Trash2 className="size-4" />
+                )}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
