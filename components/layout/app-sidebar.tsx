@@ -124,6 +124,14 @@ export function MobileBottomNav({ needsReviewCount, isAdmin }: Props) {
           Admin
         </Link>
       )}
+      <button
+        onClick={() => signOut({ callbackUrl: "/login" })}
+        className="relative flex flex-1 flex-col items-center justify-center gap-1.5 py-3 text-[11px] font-medium text-muted-foreground hover:text-destructive transition-colors"
+        title="Sign out"
+      >
+        <LogOut className="size-6" />
+        Sign out
+      </button>
     </nav>
   );
 }
