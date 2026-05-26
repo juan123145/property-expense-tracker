@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { uploadToR2 } from "@/lib/r2";
+import { db } from "@/db";
+import { properties, storageOwnerships } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { PDFDocument } from "pdf-lib";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
@@ -79,6 +82,40 @@ export async function POST(req: NextRequest) {
 
   const url = await uploadToR2(key, buffer, contentType);
   const sizeKb = Math.round(buffer.byteLength / 1024);
+
+  // Record storage ownership
+  const propertyIdString = (formData.get("propertyId") as string | null) ?? null;
+
+  try {
+    let ownerId = session.user.id; // Default to uploader
+
+    // If propertyId provided, get the property owner
+    if (propertyIdString) {
+      const [property] = await db
+        .select({ ownerId: properties.ownerId })
+        .from(properties)
+        .where(eq(properties.id, propertyIdString))
+        .limit(1);
+
+      if (property) {
+        ownerId = property.ownerId;
+      }
+    }
+
+    // Create storage ownership record
+    await db.insert(storageOwnerships).values({
+      attachmentUrl: url,
+      propertyId: propertyIdString,
+      ownerId: ownerId,
+      uploadedByUserId: session.user.id,
+      sizeBytes: buffer.byteLength,
+      contentType: contentType,
+      filePath: key,
+    });
+  } catch (err) {
+    // Non-fatal error - log but don't fail the upload
+    console.error("Failed to record storage ownership:", err);
+  }
 
   return NextResponse.json({ url, filename: file.name, sizeKb });
 }
