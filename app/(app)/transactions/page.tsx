@@ -82,6 +82,12 @@ async function getTrashedTransactions(userId: string) {
 }
 
 async function getAttachments(userId: string) {
+  const accessibleIds = await getAccessiblePropertyIds(userId);
+
+  if (accessibleIds.length === 0) {
+    return [];
+  }
+
   return db
     .select({
       transactionId: transactionAttachments.transactionId,
@@ -92,7 +98,7 @@ async function getAttachments(userId: string) {
     })
     .from(transactionAttachments)
     .innerJoin(transactions, eq(transactionAttachments.transactionId, transactions.id))
-    .where(and(eq(transactions.userId, userId), eq(transactions.isDeleted, false)))
+    .where(and(inArray(transactions.propertyId, accessibleIds), eq(transactions.isDeleted, false)))
     .orderBy(transactionAttachments.transactionId, asc(transactionAttachments.position));
 }
 
