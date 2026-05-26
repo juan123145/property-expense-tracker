@@ -362,7 +362,7 @@ export function AdminClient({ users, currentUserId }: Props) {
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex gap-1 shrink-0 invisible group-hover:visible transition-all" onClick={(e) => e.stopPropagation()}>
                       <a
                         href={file.url}
                         target="_blank"
@@ -395,7 +395,7 @@ export function AdminClient({ users, currentUserId }: Props) {
 
       {/* File preview modal */}
       {previewFile && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-card rounded-xl border shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b">
@@ -480,7 +480,7 @@ export function AdminClient({ users, currentUserId }: Props) {
 
       {/* Delete confirmation modal */}
       {deleteConfirmFile && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-card rounded-xl border shadow-xl w-full max-w-md p-6 space-y-4">
             <div className="flex items-start gap-3">
               <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100">
