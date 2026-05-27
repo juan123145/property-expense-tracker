@@ -24,7 +24,7 @@ async function getStorageBreakdown(userId: string) {
     ))
     .orderBy(desc(storageOwnerships.createdAt));
 
-  // For each attachment, find associated transaction
+  // For each attachment, find associated transaction and its status
   const enriched = await Promise.all(
     attachments.map(async (att) => {
       const result = await db
@@ -34,6 +34,7 @@ async function getStorageBreakdown(userId: string) {
           txPayee: transactions.payee,
           txAmount: transactions.amount,
           txType: transactions.type,
+          txIsDeleted: transactions.isDeleted,
         })
         .from(transactionAttachments)
         .innerJoin(transactions, eq(transactionAttachments.transactionId, transactions.id))
@@ -47,6 +48,8 @@ async function getStorageBreakdown(userId: string) {
             payee: result[0].txPayee,
             amount: result[0].txAmount,
             type: result[0].txType,
+            isDeleted: result[0].txIsDeleted,
+            status: result[0].txIsDeleted ? "Trash" : "All Transactions",
           }
         : null;
 

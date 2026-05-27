@@ -15,6 +15,8 @@ interface Transaction {
   payee: string | null;
   amount: string;
   type: string;
+  isDeleted: boolean | null;
+  status: string;
 }
 
 interface Attachment {
@@ -289,17 +291,32 @@ export function StorageBreakdownClient({
 
                   {/* Transaction Details */}
                   {a.transaction ? (
-                    <div className="bg-blue-50 border border-blue-100 rounded p-2 mb-2 text-xs">
-                      <p className="font-medium text-blue-900">Attached to transaction:</p>
-                      <div className="grid grid-cols-2 gap-2 mt-1 text-blue-800">
+                    <div className={`border rounded p-2 mb-2 text-xs ${
+                      a.transaction.isDeleted
+                        ? "bg-red-50 border-red-100"
+                        : "bg-blue-50 border-blue-100"
+                    }`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className={`font-medium ${a.transaction.isDeleted ? "text-red-900" : "text-blue-900"}`}>
+                          Attached to transaction:
+                        </p>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                          a.transaction.isDeleted
+                            ? "bg-red-100 text-red-700"
+                            : "bg-blue-100 text-blue-700"
+                        }`}>
+                          {a.transaction.status}
+                        </span>
+                      </div>
+                      <div className={`grid grid-cols-2 gap-2 mt-1 ${a.transaction.isDeleted ? "text-red-800" : "text-blue-800"}`}>
                         <div>
-                          <span className="text-blue-600">Date:</span> {a.transaction.date}
+                          <span className={a.transaction.isDeleted ? "text-red-600" : "text-blue-600"}>Date:</span> {a.transaction.date}
                         </div>
                         <div>
-                          <span className="text-blue-600">Payee:</span> {a.transaction.payee || "—"}
+                          <span className={a.transaction.isDeleted ? "text-red-600" : "text-blue-600"}>Payee:</span> {a.transaction.payee || "—"}
                         </div>
                         <div>
-                          <span className="text-blue-600">Amount:</span>{" "}
+                          <span className={a.transaction.isDeleted ? "text-red-600" : "text-blue-600"}>Amount:</span>{" "}
                           {a.transaction.type === "income" ? "+" : "-"}${parseFloat(a.transaction.amount).toFixed(2)}
                         </div>
                       </div>
