@@ -40,7 +40,8 @@ import { getCategoryBadgeClass, CATEGORIES } from "@/lib/categories";
 import { markAsReviewed, restoreTransaction } from "@/app/actions/transactions";
 import { cn } from "@/lib/utils";
 
-const PAGE_SIZE = 2;
+const DEFAULT_PAGE_SIZE = 2;
+const PAGE_SIZE_OPTIONS = [2, 10, 30];
 
 export type TransactionRow = {
   id: string;
@@ -495,8 +496,9 @@ type TableSectionProps = {
 
 function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onEdit }: TableSectionProps) {
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [pageData, setPageData] = useState<TransactionRow[]>(transactions);
-  const [pagination, setPagination] = useState({ total: transactions.length, totalPages: 1, pageSize: PAGE_SIZE });
+  const [pagination, setPagination] = useState({ total: transactions.length, totalPages: 1, pageSize: DEFAULT_PAGE_SIZE });
   const [isLoading, setIsLoading] = useState(false);
 
   const { deleteId, openDelete, closeDelete } = useDeleteDialog();
@@ -511,6 +513,10 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
   }
   function clearFilters() {
     setFilters(DEFAULT_FILTERS);
+    setPage(0);
+  }
+  function handlePageSizeChange(newSize: number) {
+    setPageSize(newSize);
     setPage(0);
   }
 
@@ -534,7 +540,7 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
     try {
       const params = new URLSearchParams({
         page: String(pageNum),
-        pageSize: String(PAGE_SIZE),
+        pageSize: String(pageSize),
         ...(filters.search && { search: filters.search }),
         ...(filters.typeFilter !== "all" && { type: filters.typeFilter }),
         ...(filters.categoryFilter && { category: filters.categoryFilter }),
@@ -564,7 +570,7 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
     } finally {
       setIsLoading(false);
     }
-  }, [filters]);
+  }, [filters, pageSize]);
 
   // Fetch whenever page or filters change
   useEffect(() => {
@@ -604,7 +610,7 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
             )}
           </div>
 
-          {/* Row 2: date + category + type + clear */}
+          {/* Row 2: date + category + type + pageSize + clear */}
           <div className="flex flex-wrap gap-2 items-center">
             <DateRangePicker
               value={filters.dateRange}
@@ -632,6 +638,18 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
                 <SelectItem value="all">All amounts</SelectItem>
                 <SelectItem value="income">Money in</SelectItem>
                 <SelectItem value="expense">Money out</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={String(pageSize)} onValueChange={(v) => handlePageSizeChange(parseInt(v ?? String(DEFAULT_PAGE_SIZE)))}>
+              <SelectTrigger className="!h-9 text-sm w-[120px] bg-background">
+                <SelectValue>{pageSize} per page</SelectValue>
+              </SelectTrigger>
+              <SelectContent align="start">
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size} per page
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             {hasActiveFilters && (
