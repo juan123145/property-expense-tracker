@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { storageOwnerships, transactionAttachments, transactions } from "@/db/schema";
-import { eq, and, isNull, desc } from "drizzle-orm";
+import { eq, and, isNull, desc, inArray } from "drizzle-orm";
 import { StorageBreakdownClient } from "./client";
 
 const QUOTA_BYTES = 500 * 1024 * 1024; // 500 MB
@@ -24,38 +24,45 @@ async function getStorageBreakdown(userId: string) {
     ))
     .orderBy(desc(storageOwnerships.createdAt));
 
-  // For each attachment, find associated transaction and its status
-  const enriched = await Promise.all(
-    attachments.map(async (att) => {
-      const result = await db
-        .select({
-          txId: transactions.id,
-          txDate: transactions.date,
-          txPayee: transactions.payee,
-          txAmount: transactions.amount,
-          txType: transactions.type,
-          txIsDeleted: transactions.isDeleted,
-        })
-        .from(transactionAttachments)
-        .innerJoin(transactions, eq(transactionAttachments.transactionId, transactions.id))
-        .where(eq(transactionAttachments.url, att.attachmentUrl))
-        .limit(1);
+  // Batch fetch all associated transactions in a single query
+  const attachmentUrlMap = new Map(attachments.map(a => [a.attachmentUrl, a]));
+  const attachmentUrls = Array.from(attachmentUrlMap.keys());
 
-      const txData = result.length > 0
-        ? {
-            id: result[0].txId,
-            date: result[0].txDate,
-            payee: result[0].txPayee,
-            amount: result[0].txAmount,
-            type: result[0].txType,
-            isDeleted: result[0].txIsDeleted,
-            status: result[0].txIsDeleted ? "Trash" : "All Transactions",
-          }
-        : null;
+  const transactionMap = new Map<string, any>();
+  if (attachmentUrls.length > 0) {
+    const txResults = await db
+      .select({
+        attachmentUrl: transactionAttachments.url,
+        txId: transactions.id,
+        txDate: transactions.date,
+        txPayee: transactions.payee,
+        txAmount: transactions.amount,
+        txType: transactions.type,
+        txIsDeleted: transactions.isDeleted,
+      })
+      .from(transactionAttachments)
+      .innerJoin(transactions, eq(transactionAttachments.transactionId, transactions.id))
+      .where(inArray(transactionAttachments.url, attachmentUrls));
 
-      return { ...att, transaction: txData };
-    })
-  );
+    // Build map of attachment URL to transaction
+    for (const result of txResults) {
+      transactionMap.set(result.attachmentUrl, {
+        id: result.txId,
+        date: result.txDate,
+        payee: result.txPayee,
+        amount: result.txAmount,
+        type: result.txType,
+        isDeleted: result.txIsDeleted,
+        status: result.txIsDeleted ? "Trash" : "All Transactions",
+      });
+    }
+  }
+
+  // Enrich attachments with transaction data
+  const enriched = attachments.map(att => ({
+    ...att,
+    transaction: transactionMap.get(att.attachmentUrl) ?? null,
+  }));
 
   return enriched;
 }

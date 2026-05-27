@@ -580,4 +580,7 @@ export async function permanentlyDeleteTransaction(id: string) {
 
   revalidatePath("/trash");
   revalidatePath("/transactions");
+  revalidatePath("/settings/storage-breakdown");
+
+  return { success: true };
 }

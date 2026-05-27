@@ -87,12 +87,16 @@ function PermanentDeleteButton({ id }: { id: string }) {
   function handleConfirm() {
     startTransition(async () => {
       try {
-        await permanentlyDeleteTransaction(id);
+        const result = await permanentlyDeleteTransaction(id);
         toast.success("Transaction permanently deleted.");
         setShowConfirm(false);
+        // Force a page refresh to update the trash list
+        setTimeout(() => window.location.reload(), 500);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Something went wrong.";
+        console.error("Delete error:", err);
         toast.error(message);
+        setShowConfirm(false);
       }
     });
   }
