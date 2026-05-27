@@ -1,33 +1,15 @@
-import { requireAuth } from "@/lib/auth-utils";
+import { requireAuth, getAccessiblePropertyIds } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { transactions, properties, units, transactionAttachments, propertyMemberships } from "@/db/schema";
-import { eq, and, desc, asc, inArray, or, isNull } from "drizzle-orm";
+import { transactions, properties, units, transactionAttachments } from "@/db/schema";
+import { eq, and, desc, asc, inArray, or } from "drizzle-orm";
 import { TransactionsClient } from "./transactions-client";
 
-async function getAccessiblePropertyIds(userId: string) {
-  // Get properties owned/created by user
-  const owned = await db
-    .select({ id: properties.id })
-    .from(properties)
-    .where(or(eq(properties.userId, userId), eq(properties.ownerId, userId)));
+const INITIAL_PAGE_SIZE = 2;
 
-  // Get properties user is member of
-  const shared = await db
-    .select({ id: propertyMemberships.propertyId })
-    .from(propertyMemberships)
-    .where(and(eq(propertyMemberships.userId, userId), eq(propertyMemberships.status, "ACTIVE")));
+async function getFirstPageTransactions(userId: string, accessibleIds: string[]) {
+  console.time("getFirstPageTransactions");
 
-  const ownedIds = owned.map((p) => p.id);
-  const sharedIds = shared.map((m) => m.id);
-  const allIds = [...new Set([...ownedIds, ...sharedIds])];
-
-  return allIds;
-}
-
-async function getTransactions(userId: string) {
-  const accessibleIds = await getAccessiblePropertyIds(userId);
-
-  return db
+  const txRows = await db
     .select({
       id: transactions.id,
       date: transactions.date,
@@ -56,122 +38,97 @@ async function getTransactions(userId: string) {
         )
       )
     )
-    .orderBy(desc(transactions.date), desc(transactions.createdAt));
-}
+    .orderBy(desc(transactions.date), desc(transactions.createdAt))
+    .limit(INITIAL_PAGE_SIZE);
 
-async function getTrashedTransactions(userId: string) {
-  const accessibleIds = await getAccessiblePropertyIds(userId);
+  const txIds = txRows.map((tx) => tx.id);
+  let attachmentsByTxId = new Map<string, Array<{ id: string; url: string; name: string | null; sizeKb: number | null }>>();
 
-  return db
-    .select({
-      id: transactions.id,
-      date: transactions.date,
-      amount: transactions.amount,
-      type: transactions.type,
-      payee: transactions.payee,
-      category: transactions.category,
-      subcategory: transactions.subcategory,
-      deletedAt: transactions.deletedAt,
-      propertyName: properties.name,
-      propertyImage: properties.imageUrl,
-      unitName: units.name,
-    })
-    .from(transactions)
-    .leftJoin(properties, eq(transactions.propertyId, properties.id))
-    .leftJoin(units, eq(transactions.unitId, units.id))
-    .where(
-      and(
-        eq(transactions.isDeleted, true),
-        or(
-          accessibleIds.length > 0 ? inArray(transactions.propertyId, accessibleIds) : undefined,
-          eq(transactions.userId, userId)
-        )
-      )
-    )
-    .orderBy(desc(transactions.deletedAt));
-}
+  if (txIds.length > 0) {
+    const attachmentRows = await db
+      .select({
+        transactionId: transactionAttachments.transactionId,
+        id: transactionAttachments.id,
+        url: transactionAttachments.url,
+        name: transactionAttachments.name,
+        sizeKb: transactionAttachments.sizeKb,
+      })
+      .from(transactionAttachments)
+      .where(inArray(transactionAttachments.transactionId, txIds))
+      .orderBy(transactionAttachments.transactionId, asc(transactionAttachments.position));
 
-async function getAttachments(userId: string) {
-  const accessibleIds = await getAccessiblePropertyIds(userId);
-
-  return db
-    .select({
-      transactionId: transactionAttachments.transactionId,
-      id: transactionAttachments.id,
-      url: transactionAttachments.url,
-      name: transactionAttachments.name,
-      sizeKb: transactionAttachments.sizeKb,
-    })
-    .from(transactionAttachments)
-    .innerJoin(transactions, eq(transactionAttachments.transactionId, transactions.id))
-    .where(
-      and(
-        eq(transactions.isDeleted, false),
-        or(
-          accessibleIds.length > 0 ? inArray(transactions.propertyId, accessibleIds) : undefined,
-          eq(transactions.userId, userId)
-        )
-      )
-    )
-    .orderBy(transactionAttachments.transactionId, asc(transactionAttachments.position));
-}
-
-async function getProperties(userId: string) {
-  const accessibleIds = await getAccessiblePropertyIds(userId);
-
-  if (accessibleIds.length === 0) {
-    return [];
+    for (const a of attachmentRows) {
+      const list = attachmentsByTxId.get(a.transactionId) ?? [];
+      list.push({ id: a.id, url: a.url, name: a.name, sizeKb: a.sizeKb });
+      attachmentsByTxId.set(a.transactionId, list);
+    }
   }
 
-  return db
-    .select({ id: properties.id, name: properties.name, imageUrl: properties.imageUrl })
-    .from(properties)
-    .where(and(inArray(properties.id, accessibleIds), eq(properties.isArchived, false)));
-}
-
-async function getAllUnits(userId: string) {
-  const accessibleIds = await getAccessiblePropertyIds(userId);
-
-  if (accessibleIds.length === 0) {
-    return [];
-  }
-
-  return db
-    .select({ id: units.id, propertyId: units.propertyId, name: units.name })
-    .from(units)
-    .innerJoin(properties, eq(units.propertyId, properties.id))
-    .where(inArray(properties.id, accessibleIds));
-}
-
-export default async function TransactionsPage() {
-  const user = await requireAuth();
-
-  const [txRows, trashedRows, attachmentRows, propList, unitList] = await Promise.all([
-    getTransactions(user.id),
-    getTrashedTransactions(user.id),
-    getAttachments(user.id),
-    getProperties(user.id),
-    getAllUnits(user.id),
-  ]);
-
-  const attachmentsByTxId = new Map<string, Array<{ id: string; url: string; name: string | null; sizeKb: number | null }>>();
-  for (const a of attachmentRows) {
-    const list = attachmentsByTxId.get(a.transactionId) ?? [];
-    list.push({ id: a.id, url: a.url, name: a.name, sizeKb: a.sizeKb });
-    attachmentsByTxId.set(a.transactionId, list);
-  }
-
-  const txList = txRows.map((tx) => ({
+  const result = txRows.map((tx) => ({
     ...tx,
     attachments: attachmentsByTxId.get(tx.id) ?? [],
   }));
 
+  console.timeEnd("getFirstPageTransactions");
+  return result;
+}
+
+async function getProperties(accessibleIds: string[]) {
+  console.time("getProperties");
+
+  if (accessibleIds.length === 0) {
+    console.timeEnd("getProperties");
+    return [];
+  }
+
+  const result = await db
+    .select({ id: properties.id, name: properties.name, imageUrl: properties.imageUrl })
+    .from(properties)
+    .where(and(inArray(properties.id, accessibleIds), eq(properties.isArchived, false)));
+
+  console.timeEnd("getProperties");
+  return result;
+}
+
+async function getAllUnits(accessibleIds: string[]) {
+  console.time("getAllUnits");
+
+  if (accessibleIds.length === 0) {
+    console.timeEnd("getAllUnits");
+    return [];
+  }
+
+  const result = await db
+    .select({ id: units.id, propertyId: units.propertyId, name: units.name })
+    .from(units)
+    .innerJoin(properties, eq(units.propertyId, properties.id))
+    .where(inArray(properties.id, accessibleIds));
+
+  console.timeEnd("getAllUnits");
+  return result;
+}
+
+export default async function TransactionsPage() {
+  console.time("TransactionsPage:total");
+
+  const user = await requireAuth();
+  const accessibleIds = await getAccessiblePropertyIds(user.id);
+
+  const [txRows, propList, unitList] = await Promise.all([
+    getFirstPageTransactions(user.id, accessibleIds),
+    getProperties(accessibleIds),
+    getAllUnits(accessibleIds),
+  ]);
+
+  console.timeEnd("TransactionsPage:total");
+
   return (
     <TransactionsClient
-      transactions={txList}
-      trashedTransactions={trashedRows}
+      transactions={txRows}
+      trashedTransactions={[]}
       properties={propList}
       allUnits={unitList}
+      userId={user.id}
     />
   );
 }

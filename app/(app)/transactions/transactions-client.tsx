@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, useTransition } from "react";
+import { useMemo, useState, useEffect, useTransition, useRef, useCallback } from "react";
 import {
   Plus, Paperclip, CheckCircle2, AlertTriangle, MoreHorizontal,
   Pencil, Trash2, Receipt, Search, X, SlidersHorizontal,
@@ -40,7 +40,7 @@ import { getCategoryBadgeClass, CATEGORIES } from "@/lib/categories";
 import { markAsReviewed, restoreTransaction } from "@/app/actions/transactions";
 import { cn } from "@/lib/utils";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 2;
 
 export type TransactionRow = {
   id: string;
@@ -82,6 +82,7 @@ type Props = {
   trashedTransactions: TrashedRow[];
   properties: Property[];
   allUnits: Unit[];
+  userId: string;
 };
 
 type Tab = "all" | "needs-review" | "trash";
@@ -494,13 +495,24 @@ type TableSectionProps = {
 
 function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onEdit }: TableSectionProps) {
   const [page, setPage] = useState(0);
+  const [pageData, setPageData] = useState<TransactionRow[]>(transactions);
+  const [pagination, setPagination] = useState({ total: transactions.length, totalPages: 1, pageSize: PAGE_SIZE });
+  const [isLoading, setIsLoading] = useState(false);
+
   const { deleteId, openDelete, closeDelete } = useDeleteDialog();
   const [viewerTx, setViewerTx] = useState<TransactionRow | null>(null);
-
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
 
-  function patchFilters(patch: Partial<FilterState>) { setFilters((f) => ({ ...f, ...patch })); }
-  function clearFilters() { setFilters(DEFAULT_FILTERS); }
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  function patchFilters(patch: Partial<FilterState>) {
+    setFilters((f) => ({ ...f, ...patch }));
+    setPage(0);
+  }
+  function clearFilters() {
+    setFilters(DEFAULT_FILTERS);
+    setPage(0);
+  }
 
   const hasActiveFilters =
     filters.search.trim() !== "" ||
@@ -509,32 +521,58 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
     filters.propertyFilter !== "" ||
     filters.dateRange.preset !== "all";
 
-  useEffect(() => { setPage(0); }, [filters]);
-
-  const filtered = useMemo(() => {
-    let r = transactions;
-    if (filters.search.trim()) {
-      const q = filters.search.toLowerCase();
-      r = r.filter((tx) =>
-        tx.payee?.toLowerCase().includes(q) ||
-        tx.notes?.toLowerCase().includes(q) ||
-        tx.category?.toLowerCase().includes(q)
-      );
+  const fetchPage = useCallback(async (pageNum: number) => {
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
-    if (filters.typeFilter !== "all") r = r.filter((tx) => tx.type === filters.typeFilter);
-    if (filters.categoryFilter) r = r.filter((tx) => tx.category === filters.categoryFilter);
-    if (filters.propertyFilter) r = r.filter((tx) => tx.propertyId === filters.propertyFilter);
-    if (filters.dateRange.preset !== "all") {
-      r = r.filter((tx) => tx.date >= filters.dateRange.start && tx.date <= filters.dateRange.end);
-    }
-    return r;
-  }, [transactions, filters]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageSlice = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(pageNum),
+        pageSize: String(PAGE_SIZE),
+        ...(filters.search && { search: filters.search }),
+        ...(filters.typeFilter !== "all" && { type: filters.typeFilter }),
+        ...(filters.categoryFilter && { category: filters.categoryFilter }),
+        ...(filters.propertyFilter && { property: filters.propertyFilter }),
+        ...(filters.dateRange.preset !== "all" && {
+          startDate: filters.dateRange.start,
+          endDate: filters.dateRange.end,
+        }),
+      });
+
+      const res = await fetch(`/api/transactions/paginated?${params}`, {
+        signal: controller.signal,
+      });
+
+      if (!res.ok) throw new Error("Failed to fetch");
+      const json = await res.json();
+
+      // Ignore stale responses
+      if (controller.signal.aborted) return;
+
+      setPageData(json.data);
+      setPagination(json.pagination);
+      setPage(json.pagination.page);
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") return;
+      console.error("Failed to load page:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [filters]);
+
+  // Fetch whenever page or filters change
+  useEffect(() => {
+    fetchPage(page);
+  }, [page, filters, fetchPage]);
 
   return (
-    <>
+    <div>
       {/* Filter bar — Stessa-style: always visible, 2 rows */}
       {transactions.length > 0 && (
         <div className="mb-4 space-y-2">
@@ -615,7 +653,7 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
           </div>
           <Button onClick={onOpenAdd}><Plus className="size-4 mr-2" />Add Transaction</Button>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : pageData.length === 0 && !isLoading ? (
         <div className="flex flex-col items-center justify-center py-16 text-center gap-3 border rounded-lg bg-muted/30">
           <SlidersHorizontal className="size-10 text-muted-foreground" />
           <div>
@@ -628,9 +666,13 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
         <>
           {/* Mobile: card list */}
           <div className="md:hidden space-y-2">
-            {pageSlice.map((tx) => (
-              <TransactionCard key={tx.id} tx={tx} onEdit={onEdit} onDelete={openDelete} onViewAttachments={setViewerTx} />
-            ))}
+            {isLoading ? (
+              <TransactionsSkeleton />
+            ) : (
+              pageData.map((tx) => (
+                <TransactionCard key={tx.id} tx={tx} onEdit={onEdit} onDelete={openDelete} onViewAttachments={setViewerTx} />
+              ))
+            )}
           </div>
 
           {/* Desktop: table */}
@@ -650,7 +692,14 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pageSlice.map((tx) => (
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="h-20 text-center">
+                      <div className="flex justify-center items-center">Loading...</div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  pageData.map((tx) => (
                   <TableRow
                     key={tx.id}
                     className={cn(
@@ -706,7 +755,8 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -715,14 +765,28 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
           <div className="flex items-center justify-between pt-3 text-sm text-muted-foreground">
             <span>
               {hasActiveFilters
-                ? `${filtered.length} of ${transactions.length} transactions`
-                : `${transactions.length} transaction${transactions.length !== 1 ? "s" : ""}`}
-              {totalPages > 1 && ` · page ${page + 1} of ${totalPages}`}
+                ? `${pagination.total} of ${transactions.length} transactions`
+                : `${pagination.total} transaction${pagination.total !== 1 ? "s" : ""}`}
+              {pagination.totalPages > 1 && ` · page ${page + 1} of ${pagination.totalPages}`}
             </span>
-            {totalPages > 1 && (
+            {pagination.totalPages > 1 && (
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</Button>
-                <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Next</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === 0 || isLoading}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= pagination.totalPages - 1 || isLoading}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
               </div>
             )}
           </div>
@@ -742,7 +806,7 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
           onDeleted={() => setViewerTx(null)}
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -803,7 +867,7 @@ export function TransactionsTableSection({
 
 // ─── Root client component ────────────────────────────────────────────────────
 
-export function TransactionsClient({ transactions, trashedTransactions, properties, allUnits }: Props) {
+export function TransactionsClient({ transactions, trashedTransactions, properties, allUnits, userId }: Props) {
   const [tab, setTab] = useState<Tab>("all");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editTransaction, setEditTransaction] = useState<TransactionFormData | undefined>();
