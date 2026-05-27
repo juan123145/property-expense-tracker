@@ -360,15 +360,27 @@ export async function deleteTransaction(id: string) {
     })
     .where(eq(transactions.id, id));
 
-  // Insert into SoftDeleteQueue for background job processing
-  await db.insert(softDeleteQueue).values({
-    transactionId: id,
-    scheduledPermanentDeleteAt,
-    status: "SOFT_DELETED",
-  });
+  // Insert into SoftDeleteQueue for background job processing (or update if exists)
+  try {
+    await db.insert(softDeleteQueue).values({
+      transactionId: id,
+      scheduledPermanentDeleteAt,
+      status: "SOFT_DELETED",
+    });
+  } catch (err) {
+    // If soft delete queue entry already exists, just update it
+    await db
+      .update(softDeleteQueue)
+      .set({
+        scheduledPermanentDeleteAt,
+        status: "SOFT_DELETED",
+      })
+      .where(eq(softDeleteQueue.transactionId, id));
+  }
 
   revalidatePath("/transactions");
   revalidatePath("/properties");
+  revalidatePath("/trash");
 }
 
 export async function clearAttachment(transactionId: string) {

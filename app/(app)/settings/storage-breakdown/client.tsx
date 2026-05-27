@@ -106,9 +106,13 @@ function DeleteAttachmentButton({ attachmentId }: { attachmentId: string }) {
         await deleteTransactionAttachment(attachmentId);
         toast.success("Attachment deleted permanently.");
         setShowConfirm(false);
+        // Refresh page to show updated storage
+        setTimeout(() => window.location.reload(), 500);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Something went wrong.";
+        console.error("Delete error:", err);
         toast.error(message);
+        setShowConfirm(false);
       }
     });
   }
