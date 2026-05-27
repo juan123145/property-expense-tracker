@@ -585,7 +585,7 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
   return (
     <div>
       {/* Filter bar — Stessa-style: always visible, 2 rows */}
-      {transactions.length > 0 && (
+      {isMounted && transactions.length > 0 && (
         <div className="mb-4 space-y-2">
           {/* Row 1: search + property */}
           <div className="flex flex-wrap gap-2 items-center">
@@ -598,7 +598,7 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
                 onChange={(e) => patchFilters({ search: e.target.value })}
               />
             </div>
-            {isMounted && properties.length > 0 && (
+            {properties.length > 0 && (
               <Select value={filters.propertyFilter || "all"} onValueChange={(v) => patchFilters({ propertyFilter: (v ?? "") === "all" ? "" : (v ?? "") })}>
                 <SelectTrigger className="!h-9 text-sm w-[180px] bg-background">
                   <SelectValue>
@@ -616,8 +616,7 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
           </div>
 
           {/* Row 2: date + category + type + pageSize + clear */}
-          {isMounted && (
-            <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex flex-wrap gap-2 items-center">
               <DateRangePicker
                 value={filters.dateRange}
                 onChange={(range) => patchFilters({ dateRange: range })}
@@ -664,7 +663,6 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
                 </Button>
               )}
             </div>
-          )}
         </div>
       )}
 
