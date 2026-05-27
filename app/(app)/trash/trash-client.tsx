@@ -1,9 +1,9 @@
 "use client";
 
-import { useTransition } from "react";
+import { useTransition, useState } from "react";
 import { toast } from "sonner";
-import { Trash2, RotateCcw } from "lucide-react";
-import { restoreTransaction } from "@/app/actions/transactions";
+import { Trash2, RotateCcw, AlertTriangle, X } from "lucide-react";
+import { restoreTransaction, permanentlyDeleteTransaction } from "@/app/actions/transactions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -59,8 +59,9 @@ function RestoreButton({ id }: { id: string }) {
       try {
         await restoreTransaction(id);
         toast.success("Transaction restored.");
-      } catch {
-        toast.error("Something went wrong.");
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Something went wrong.";
+        toast.error(message);
       }
     });
   }
@@ -75,6 +76,83 @@ function RestoreButton({ id }: { id: string }) {
     >
       <RotateCcw className="size-3" />
       {pending ? "Restoring…" : "Restore"}
+    </Button>
+  );
+}
+
+function PermanentDeleteButton({ id }: { id: string }) {
+  const [pending, startTransition] = useTransition();
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  function handleConfirm() {
+    startTransition(async () => {
+      try {
+        await permanentlyDeleteTransaction(id);
+        toast.success("Transaction permanently deleted.");
+        setShowConfirm(false);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Something went wrong.";
+        toast.error(message);
+      }
+    });
+  }
+
+  if (showConfirm) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="bg-card rounded-lg border shadow-xl w-full max-w-sm p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100">
+              <AlertTriangle className="size-5 text-red-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold">Permanently delete transaction?</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                This will skip the 30-day trash period and permanently delete this transaction and all its attachments. This action cannot be undone.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowConfirm(false)}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+
+          <div className="flex gap-3 justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowConfirm(false)}
+              disabled={pending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleConfirm}
+              disabled={pending}
+            >
+              <Trash2 className="size-3 mr-1" />
+              {pending ? "Deleting…" : "Delete Permanently"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="h-7 text-xs gap-1 shrink-0 text-destructive hover:text-destructive"
+      onClick={() => setShowConfirm(true)}
+      disabled={pending}
+    >
+      <Trash2 className="size-3" />
+      Delete
     </Button>
   );
 }
@@ -162,7 +240,10 @@ export function TrashClient({ transactions }: Props) {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <RestoreButton id={tx.id} />
+                      <div className="flex gap-1">
+                        <RestoreButton id={tx.id} />
+                        <PermanentDeleteButton id={tx.id} />
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

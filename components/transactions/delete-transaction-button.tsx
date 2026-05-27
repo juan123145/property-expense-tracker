@@ -25,10 +25,11 @@ export function DeleteTransactionDialog({ id, open, onOpenChange }: Props) {
     startTransition(async () => {
       try {
         await deleteTransaction(id);
-        toast.success("Transaction deleted.");
+        toast.success("Transaction moved to trash.");
         onOpenChange(false);
-      } catch {
-        toast.error("Something went wrong.");
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Something went wrong.";
+        toast.error(message);
       }
     });
   }

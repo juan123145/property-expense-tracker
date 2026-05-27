@@ -501,3 +501,72 @@ export async function restoreTransaction(id: string) {
   revalidatePath("/trash");
   revalidatePath("/transactions");
 }
+
+export async function permanentlyDeleteTransaction(id: string) {
+  const user = await requireAuth();
+
+  // Get transaction details for authorization and attachment cleanup
+  const [tx] = await db
+    .select({
+      propertyId: transactions.propertyId,
+      userId: transactions.userId,
+      isDeleted: transactions.isDeleted,
+    })
+    .from(transactions)
+    .where(eq(transactions.id, id))
+    .limit(1);
+
+  if (!tx) {
+    throw new Error("Transaction not found.");
+  }
+
+  if (!tx.isDeleted) {
+    throw new Error("Can only permanently delete transactions in trash.");
+  }
+
+  // AUTHORIZATION: User must be able to write to the property or own the transaction
+  if (tx.propertyId) {
+    const hasAccess = await canWriteToProperty(user.id, tx.propertyId);
+    if (!hasAccess) {
+      throw new Error("You do not have permission to delete this transaction.");
+    }
+  } else if (tx.userId !== user.id) {
+    // If no property, only the creator can delete
+    throw new Error("You do not have permission to delete this transaction.");
+  }
+
+  // Get and delete all attachments from R2
+  const attachments = await db
+    .select({ url: transactionAttachments.url })
+    .from(transactionAttachments)
+    .where(eq(transactionAttachments.transactionId, id));
+
+  for (const { url } of attachments) {
+    try { await deleteFromR2(url); } catch { /* non-fatal */ }
+  }
+
+  // Delete from storageOwnerships (removes quota impact)
+  const storageRecords = await db
+    .select({ attachmentUrl: storageOwnerships.attachmentUrl })
+    .from(storageOwnerships)
+    .where(inArray(
+      storageOwnerships.attachmentUrl,
+      attachments.map(a => a.url)
+    ));
+
+  for (const record of storageRecords) {
+    await db.delete(storageOwnerships).where(eq(storageOwnerships.attachmentUrl, record.attachmentUrl));
+  }
+
+  // Delete attachments from DB
+  await db.delete(transactionAttachments).where(eq(transactionAttachments.transactionId, id));
+
+  // Delete the transaction itself
+  await db.delete(transactions).where(eq(transactions.id, id));
+
+  // Delete from soft delete queue if exists
+  await db.delete(softDeleteQueue).where(eq(softDeleteQueue.transactionId, id));
+
+  revalidatePath("/trash");
+  revalidatePath("/transactions");
+}
