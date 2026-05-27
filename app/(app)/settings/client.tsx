@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import { signOut } from "next-auth/react";
 import { toast } from "sonner";
-import { User, HardDrive, Trash2, AlertTriangle, Shield, X, Monitor, Sun, Moon, LogOut, Edit2, ChevronRight } from "lucide-react";
+import { User, HardDrive, Trash2, AlertTriangle, Shield, X, Monitor, Sun, Moon, LogOut, Edit2, ChevronRight, Zap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -67,6 +67,25 @@ export function SettingsClient({ user, username, phone, usedKb, quotaKb }: Props
       } else {
         toast.success("Profile updated!");
         setIsEditingProfile(false);
+      }
+    });
+  }
+
+  function handleFixStorageAttribution() {
+    startTransition(async () => {
+      try {
+        const res = await fetch("/api/admin/fix-storage-attribution", { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error || "Failed to fix storage attribution");
+        } else {
+          toast.success(`Fixed storage attribution for ${data.updated} files`);
+          if (data.errors) {
+            data.errors.forEach((err: string) => console.warn(err));
+          }
+        }
+      } catch (err) {
+        toast.error("Something went wrong");
       }
     });
   }
@@ -276,12 +295,24 @@ export function SettingsClient({ user, username, phone, usedKb, quotaKb }: Props
             Storage is used by receipts and attachments uploaded to transactions.
           </p>
 
-          <Link href="/settings/storage-breakdown" className="inline-block">
-            <button className="text-xs font-medium text-primary hover:underline flex items-center gap-1">
-              View detailed breakdown
-              <ChevronRight className="size-3" />
-            </button>
-          </Link>
+          <div className="flex items-center justify-between gap-2 pt-2">
+            <Link href="/settings/storage-breakdown" className="inline-block">
+              <button className="text-xs font-medium text-primary hover:underline flex items-center gap-1">
+                View detailed breakdown
+                <ChevronRight className="size-3" />
+              </button>
+            </Link>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1"
+              onClick={handleFixStorageAttribution}
+              disabled={isPending}
+            >
+              <Zap className="size-3" />
+              {isPending ? "Fixing…" : "Fix Attribution"}
+            </Button>
+          </div>
         </div>
       </section>
 
