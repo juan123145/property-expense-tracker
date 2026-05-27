@@ -585,38 +585,43 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
   return (
     <div>
       {/* Filter bar — Stessa-style: always visible, 2 rows */}
-      {isMounted && transactions.length > 0 && (
-        <div className="mb-4 space-y-2">
+      {transactions.length > 0 && (
+        <div className="mb-4 space-y-2" suppressHydrationWarning>
           {/* Row 1: search + property */}
-          <div className="flex flex-wrap gap-2 items-center">
-            <div className="relative w-[220px]">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-              <Input
-                placeholder="Search for..."
-                className="pl-8 !h-9 text-sm"
-                value={filters.search}
-                onChange={(e) => patchFilters({ search: e.target.value })}
-              />
+          {isMounted ? (
+            <div className="flex flex-wrap gap-2 items-center">
+              <div className="relative w-[220px]">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  placeholder="Search for..."
+                  className="pl-8 !h-9 text-sm"
+                  value={filters.search}
+                  onChange={(e) => patchFilters({ search: e.target.value })}
+                />
+              </div>
+              {properties.length > 0 && (
+                <Select value={filters.propertyFilter || "all"} onValueChange={(v) => patchFilters({ propertyFilter: (v ?? "") === "all" ? "" : (v ?? "") })}>
+                  <SelectTrigger className="!h-9 text-sm w-[180px] bg-background">
+                    <SelectValue>
+                      {filters.propertyFilter
+                        ? (properties.find((p) => p.id === filters.propertyFilter)?.name ?? "All Properties")
+                        : "All Properties"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent align="start">
+                    <SelectItem value="all">All Properties</SelectItem>
+                    {properties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
-            {properties.length > 0 && (
-              <Select value={filters.propertyFilter || "all"} onValueChange={(v) => patchFilters({ propertyFilter: (v ?? "") === "all" ? "" : (v ?? "") })}>
-                <SelectTrigger className="!h-9 text-sm w-[180px] bg-background">
-                  <SelectValue>
-                    {filters.propertyFilter
-                      ? (properties.find((p) => p.id === filters.propertyFilter)?.name ?? "All Properties")
-                      : "All Properties"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent align="start">
-                  <SelectItem value="all">All Properties</SelectItem>
-                  {properties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+          ) : (
+            <div className="h-9" />
+          )}
 
           {/* Row 2: date + category + type + pageSize + clear */}
-          <div className="flex flex-wrap gap-2 items-center">
+          {isMounted ? (
+            <div className="flex flex-wrap gap-2 items-center">
               <DateRangePicker
                 value={filters.dateRange}
                 onChange={(range) => patchFilters({ dateRange: range })}
@@ -663,6 +668,9 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
                 </Button>
               )}
             </div>
+          ) : (
+            <div className="h-9" />
+          )}
         </div>
       )}
 
