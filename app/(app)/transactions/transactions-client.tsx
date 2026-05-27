@@ -578,10 +578,10 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
   }, [page, filters, fetchPage]);
 
   return (
-    <div>
+    <div suppressHydrationWarning>
       {/* Filter bar — Stessa-style: always visible, 2 rows */}
       {transactions.length > 0 && (
-        <div className="mb-4 space-y-2">
+        <div className="mb-4 space-y-2" suppressHydrationWarning>
           {/* Row 1: search + property */}
           <div className="flex flex-wrap gap-2 items-center">
             <div className="relative w-[220px]">
