@@ -500,17 +500,12 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
   const [pageData, setPageData] = useState<TransactionRow[]>(transactions);
   const [pagination, setPagination] = useState({ total: transactions.length, totalPages: 1, pageSize: DEFAULT_PAGE_SIZE });
   const [isLoading, setIsLoading] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
 
   const { deleteId, openDelete, closeDelete } = useDeleteDialog();
   const [viewerTx, setViewerTx] = useState<TransactionRow | null>(null);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
 
   const abortControllerRef = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   function patchFilters(patch: Partial<FilterState>) {
     setFilters((f) => ({ ...f, ...patch }));
@@ -588,89 +583,81 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
       {transactions.length > 0 && (
         <div className="mb-4 space-y-2" suppressHydrationWarning>
           {/* Row 1: search + property */}
-          {isMounted ? (
-            <div className="flex flex-wrap gap-2 items-center">
-              <div className="relative w-[220px]">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-                <Input
-                  placeholder="Search for..."
-                  className="pl-8 !h-9 text-sm"
-                  value={filters.search}
-                  onChange={(e) => patchFilters({ search: e.target.value })}
-                />
-              </div>
-              {properties.length > 0 && (
-                <Select value={filters.propertyFilter || "all"} onValueChange={(v) => patchFilters({ propertyFilter: (v ?? "") === "all" ? "" : (v ?? "") })}>
-                  <SelectTrigger className="!h-9 text-sm w-[180px] bg-background">
-                    <SelectValue>
-                      {filters.propertyFilter
-                        ? (properties.find((p) => p.id === filters.propertyFilter)?.name ?? "All Properties")
-                        : "All Properties"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent align="start">
-                    <SelectItem value="all">All Properties</SelectItem>
-                    {properties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              )}
+          <div className="flex flex-wrap gap-2 items-center" suppressHydrationWarning>
+            <div className="relative w-[220px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Search for..."
+                className="pl-8 !h-9 text-sm"
+                value={filters.search}
+                onChange={(e) => patchFilters({ search: e.target.value })}
+              />
             </div>
-          ) : (
-            <div className="h-9" />
-          )}
+            {properties.length > 0 && (
+              <Select value={filters.propertyFilter || "all"} onValueChange={(v) => patchFilters({ propertyFilter: (v ?? "") === "all" ? "" : (v ?? "") })}>
+                <SelectTrigger className="!h-9 text-sm w-[180px] bg-background">
+                  <SelectValue suppressHydrationWarning>
+                    {filters.propertyFilter
+                      ? (properties.find((p) => p.id === filters.propertyFilter)?.name ?? "All Properties")
+                      : "All Properties"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent align="start">
+                  <SelectItem value="all">All Properties</SelectItem>
+                  {properties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
 
           {/* Row 2: date + category + type + pageSize + clear */}
-          {isMounted ? (
-            <div className="flex flex-wrap gap-2 items-center">
-              <DateRangePicker
-                value={filters.dateRange}
-                onChange={(range) => patchFilters({ dateRange: range })}
-                className="!h-9 text-sm"
-              />
-              <Select value={filters.categoryFilter || "all"} onValueChange={(v) => patchFilters({ categoryFilter: (v ?? "") === "all" ? "" : (v ?? "") })}>
-                <SelectTrigger className="!h-9 text-sm w-[160px] bg-background">
-                  <SelectValue>
-                    {filters.categoryFilter || "All Categories"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent align="start">
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {CATEGORIES.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={filters.typeFilter} onValueChange={(v) => patchFilters({ typeFilter: (v ?? "all") as FilterState["typeFilter"] })}>
-                <SelectTrigger className="!h-9 text-sm w-[140px] bg-background">
-                  <SelectValue>
-                    {filters.typeFilter === "income" ? "Money in" : filters.typeFilter === "expense" ? "Money out" : "All amounts"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent align="start">
-                  <SelectItem value="all">All amounts</SelectItem>
-                  <SelectItem value="income">Money in</SelectItem>
-                  <SelectItem value="expense">Money out</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={String(pageSize)} onValueChange={(v) => handlePageSizeChange(parseInt(v ?? String(DEFAULT_PAGE_SIZE)))}>
-                <SelectTrigger className="!h-9 text-sm w-[120px] bg-background">
-                  <SelectValue>{pageSize} per page</SelectValue>
-                </SelectTrigger>
-                <SelectContent align="start">
-                  {PAGE_SIZE_OPTIONS.map((size) => (
-                    <SelectItem key={size} value={String(size)}>
-                      {size} per page
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {hasActiveFilters && (
-                <Button variant="ghost" size="sm" className="!h-9 px-3 text-sm text-muted-foreground" onClick={clearFilters}>
-                  <X className="size-3.5 mr-1" />Clear
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="h-9" />
-          )}
+          <div className="flex flex-wrap gap-2 items-center" suppressHydrationWarning>
+            <DateRangePicker
+              value={filters.dateRange}
+              onChange={(range) => patchFilters({ dateRange: range })}
+              className="!h-9 text-sm"
+            />
+            <Select value={filters.categoryFilter || "all"} onValueChange={(v) => patchFilters({ categoryFilter: (v ?? "") === "all" ? "" : (v ?? "") })}>
+              <SelectTrigger className="!h-9 text-sm w-[160px] bg-background">
+                <SelectValue suppressHydrationWarning>
+                  {filters.categoryFilter || "All Categories"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent align="start">
+                <SelectItem value="all">All Categories</SelectItem>
+                {CATEGORIES.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filters.typeFilter} onValueChange={(v) => patchFilters({ typeFilter: (v ?? "all") as FilterState["typeFilter"] })}>
+              <SelectTrigger className="!h-9 text-sm w-[140px] bg-background">
+                <SelectValue suppressHydrationWarning>
+                  {filters.typeFilter === "income" ? "Money in" : filters.typeFilter === "expense" ? "Money out" : "All amounts"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent align="start">
+                <SelectItem value="all">All amounts</SelectItem>
+                <SelectItem value="income">Money in</SelectItem>
+                <SelectItem value="expense">Money out</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={String(pageSize)} onValueChange={(v) => handlePageSizeChange(parseInt(v ?? String(DEFAULT_PAGE_SIZE)))}>
+              <SelectTrigger className="!h-9 text-sm w-[120px] bg-background">
+                <SelectValue suppressHydrationWarning>{pageSize} per page</SelectValue>
+              </SelectTrigger>
+              <SelectContent align="start">
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size} per page
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" className="!h-9 px-3 text-sm text-muted-foreground" onClick={clearFilters}>
+                <X className="size-3.5 mr-1" />Clear
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
