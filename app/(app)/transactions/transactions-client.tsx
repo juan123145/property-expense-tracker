@@ -578,12 +578,12 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
   }, [page, filters, fetchPage]);
 
   return (
-    <div>
+    <div suppressHydrationWarning>
       {/* Filter bar — Stessa-style: always visible, 2 rows */}
       {transactions.length > 0 && (
-        <div className="mb-4 space-y-2" suppressHydrationWarning>
+        <div className="mb-4 space-y-2">
           {/* Row 1: search + property */}
-          <div className="flex flex-wrap gap-2 items-center" suppressHydrationWarning>
+          <div className="flex flex-wrap gap-2 items-center">
             <div className="relative w-[220px]">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
               <Input
@@ -596,7 +596,7 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
             {properties.length > 0 && (
               <Select value={filters.propertyFilter || "all"} onValueChange={(v) => patchFilters({ propertyFilter: (v ?? "") === "all" ? "" : (v ?? "") })}>
                 <SelectTrigger className="!h-9 text-sm w-[180px] bg-background">
-                  <SelectValue suppressHydrationWarning>
+                  <SelectValue>
                     {filters.propertyFilter
                       ? (properties.find((p) => p.id === filters.propertyFilter)?.name ?? "All Properties")
                       : "All Properties"}
@@ -611,7 +611,7 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
           </div>
 
           {/* Row 2: date + category + type + pageSize + clear */}
-          <div className="flex flex-wrap gap-2 items-center" suppressHydrationWarning>
+          <div className="flex flex-wrap gap-2 items-center">
             <DateRangePicker
               value={filters.dateRange}
               onChange={(range) => patchFilters({ dateRange: range })}
@@ -619,7 +619,7 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
             />
             <Select value={filters.categoryFilter || "all"} onValueChange={(v) => patchFilters({ categoryFilter: (v ?? "") === "all" ? "" : (v ?? "") })}>
               <SelectTrigger className="!h-9 text-sm w-[160px] bg-background">
-                <SelectValue suppressHydrationWarning>
+                <SelectValue>
                   {filters.categoryFilter || "All Categories"}
                 </SelectValue>
               </SelectTrigger>
@@ -630,7 +630,7 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
             </Select>
             <Select value={filters.typeFilter} onValueChange={(v) => patchFilters({ typeFilter: (v ?? "all") as FilterState["typeFilter"] })}>
               <SelectTrigger className="!h-9 text-sm w-[140px] bg-background">
-                <SelectValue suppressHydrationWarning>
+                <SelectValue>
                   {filters.typeFilter === "income" ? "Money in" : filters.typeFilter === "expense" ? "Money out" : "All amounts"}
                 </SelectValue>
               </SelectTrigger>
@@ -642,7 +642,7 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
             </Select>
             <Select value={String(pageSize)} onValueChange={(v) => handlePageSizeChange(parseInt(v ?? String(DEFAULT_PAGE_SIZE)))}>
               <SelectTrigger className="!h-9 text-sm w-[120px] bg-background">
-                <SelectValue suppressHydrationWarning>{pageSize} per page</SelectValue>
+                <SelectValue>{pageSize} per page</SelectValue>
               </SelectTrigger>
               <SelectContent align="start">
                 {PAGE_SIZE_OPTIONS.map((size) => (
