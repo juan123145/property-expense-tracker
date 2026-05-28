@@ -25,6 +25,7 @@ import {
 import { CategoryPicker } from "./category-picker";
 import { ReceiptUploadZone } from "./receipt-upload-zone";
 import { DatePickerInput } from "@/components/ui/date-picker";
+import { QuotaProgressBar } from "@/components/quota-progress-bar";
 import { cn } from "@/lib/utils";
 
 export type TransactionFormData = {
@@ -292,6 +293,11 @@ export function AddTransactionSheet({
         <form ref={formRef} onSubmit={handleSubmit} className="mt-5 px-4 pb-6">
           {isEdit && <input type="hidden" name="id" value={transaction.id} />}
 
+          {/* Storage Quota Bar */}
+          <div className="mb-5">
+            <QuotaProgressBar />
+          </div>
+
           {/* OCR banners */}
           {ocrScanning && (
             <div className="flex items-center gap-2 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2.5 text-sm text-blue-700 mb-5">
@@ -509,6 +515,7 @@ export function AddTransactionSheet({
               <ReceiptUploadZone
                 files={pendingFiles}
                 scanning={ocrScanning}
+                propertyId={propertyId === "none" ? null : propertyId}
                 existingAttachments={
                   (transaction?.attachments ?? []).filter((a) => !attachmentsToDelete.includes(a.id))
                 }

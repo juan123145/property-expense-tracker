@@ -1,0 +1,281 @@
+{
+  "timestamp": "2026-05-28T03:10:23.319Z",
+  "environment": {
+    "baseUrl": "http://localhost:3000",
+    "platform": "win32",
+    "browser": "Chromium (Playwright)"
+  },
+  "summary": {
+    "total": 32,
+    "passed": 29,
+    "failed": 3,
+    "passPercentage": 91
+  },
+  "tests": [
+    {
+      "timestamp": "2026-05-28T03:10:11.204Z",
+      "test": "Login page loads",
+      "passed": true,
+      "details": {
+        "url": "http://localhost:3000/login"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:11.204Z",
+      "test": "Login page has no console errors",
+      "passed": true,
+      "details": {
+        "message": "No errors"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:11.260Z",
+      "test": "Sign-in button present",
+      "passed": true,
+      "details": {
+        "message": "Google OAuth button or submit button found"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:11.286Z",
+      "test": "Login page title visible",
+      "passed": true,
+      "details": {
+        "message": "Property Tracker heading found"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:12.166Z",
+      "test": "Dashboard page accessible",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "url": "http://localhost:3000/login"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:12.166Z",
+      "test": "Dashboard has no console errors",
+      "passed": true,
+      "details": {
+        "message": "No errors"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:12.190Z",
+      "test": "Dashboard has content",
+      "passed": true,
+      "details": {
+        "message": "Dashboard content detected"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:12.851Z",
+      "test": "Properties page loads",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "url": "http://localhost:3000/login"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:12.851Z",
+      "test": "Properties page has no console errors",
+      "passed": true,
+      "details": {
+        "message": "No errors"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:12.880Z",
+      "test": "Properties page shows content",
+      "passed": true,
+      "details": {
+        "message": "Properties UI found"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:13.651Z",
+      "test": "Transactions page loads",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "url": "http://localhost:3000/login"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:13.651Z",
+      "test": "Transactions page has no console errors",
+      "passed": true,
+      "details": {
+        "message": "No errors"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:13.668Z",
+      "test": "Transaction content visible",
+      "passed": false,
+      "details": {
+        "message": "Limited content"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:13.672Z",
+      "test": "Pagination controls exist",
+      "passed": false,
+      "details": {
+        "message": "Pagination not visible"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:14.297Z",
+      "test": "Reports page loads",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "url": "http://localhost:3000/login"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:14.297Z",
+      "test": "Reports page has no console errors",
+      "passed": true,
+      "details": {
+        "message": "No errors"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:14.329Z",
+      "test": "Reports page shows content",
+      "passed": false,
+      "details": {
+        "message": "Limited content"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:15.093Z",
+      "test": "Settings page loads",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "url": "http://localhost:3000/login"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:15.093Z",
+      "test": "Settings page has no console errors",
+      "passed": true,
+      "details": {
+        "message": "No errors"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:15.124Z",
+      "test": "Settings page shows content",
+      "passed": true,
+      "details": {
+        "message": "Settings content found"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:15.769Z",
+      "test": "Navigation starts at login",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "timestamp": "2026-05-28T03:10:16.383Z",
+      "test": "Navigation to dashboard works",
+      "passed": true,
+      "details": {
+        "url": "http://localhost:3000/login"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:17.103Z",
+      "test": "Navigation to properties works",
+      "passed": true,
+      "details": {
+        "url": "http://localhost:3000/login"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:17.751Z",
+      "test": "Navigation to transactions works",
+      "passed": true,
+      "details": {
+        "url": "http://localhost:3000/login"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:18.368Z",
+      "test": "Navigation to reports works",
+      "passed": true,
+      "details": {
+        "url": "http://localhost:3000/login"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:19.203Z",
+      "test": "Navigation to settings works",
+      "passed": true,
+      "details": {
+        "url": "http://localhost:3000/login"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:19.849Z",
+      "test": "/login returns valid status",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "expected": "200 or redirect"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:20.504Z",
+      "test": "/dashboard returns valid status",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "expected": "200 or redirect"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:21.141Z",
+      "test": "/properties returns valid status",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "expected": "200 or redirect"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:21.874Z",
+      "test": "/transactions returns valid status",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "expected": "200 or redirect"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:22.528Z",
+      "test": "/reports returns valid status",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "expected": "200 or redirect"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:23.227Z",
+      "test": "/settings returns valid status",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "expected": "200 or redirect"
+      }
+    }
+  ]
+}

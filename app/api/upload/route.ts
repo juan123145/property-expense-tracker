@@ -6,6 +6,7 @@ import { properties, storageOwnerships } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { PDFDocument } from "pdf-lib";
 import sharp from "sharp";
+import { checkQuotaAvailable, determineQuotaOwner, formatBytes } from "@/lib/quota";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -82,6 +83,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "File exceeds 10 MB limit" }, { status: 400 });
   }
 
+  // Check quota before uploading
+  const propertyIdString = (formData.get("propertyId") as string | null) ?? null;
+  const quotaOwner = await determineQuotaOwner(session.user.id, propertyIdString);
+  const quotaCheck = await checkQuotaAvailable(quotaOwner, file.size);
+
+  if (!quotaCheck.allowed) {
+    const needed = file.size - quotaCheck.remainingBytes;
+    return NextResponse.json(
+      {
+        error: `Upload exceeds quota. Need ${formatBytes(needed)} more space. Current: ${formatBytes(quotaCheck.usedBytes)} / ${formatBytes(quotaCheck.quotaBytes)}`,
+        quotaExceeded: true,
+        usedBytes: quotaCheck.usedBytes,
+        quotaBytes: quotaCheck.quotaBytes,
+        needed,
+      },
+      { status: 413 } // Payload Too Large
+    );
+  }
+
   const folderParam = (formData.get("folder") as string | null) ?? "";
   const folder = folderParam === "properties" ? "properties" : "receipts";
 
@@ -106,9 +126,7 @@ export async function POST(req: NextRequest) {
   const url = await uploadToR2(key, buffer, contentType);
   const sizeKb = Math.round(buffer.byteLength / 1024);
 
-  // Record storage ownership
-  const propertyIdString = (formData.get("propertyId") as string | null) ?? null;
-
+  // Record storage ownership - propertyIdString already defined above
   try {
     let ownerId = session.user.id; // Default to uploader
 

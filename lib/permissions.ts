@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { propertyMemberships, propertyInvitations } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { propertyMemberships, propertyInvitations, propertyShares } from "@/db/schema";
+import { eq, and, or } from "drizzle-orm";
 
 /**
  * Property role for RBAC
@@ -40,6 +40,10 @@ const roleHierarchy: Record<PropertyRole, number> = {
 
 /**
  * Get user's property membership details
+ * 
+ * HYBRID APPROACH: Checks BOTH propertyMemberships (new) and propertyShares (legacy).
+ * This ensures compatibility during migration period.
+ * 
  * @param userId - The user ID
  * @param propertyId - The property ID
  * @returns PropertyMembership or null if no membership exists
@@ -48,6 +52,7 @@ export async function getUserPropertyRole(
   userId: string,
   propertyId: string
 ): Promise<PropertyMembership | null> {
+  // Check new system first
   const [membership] = await db
     .select()
     .from(propertyMemberships)
@@ -59,28 +64,75 @@ export async function getUserPropertyRole(
     )
     .limit(1);
 
-  if (!membership) return null;
+  if (membership) {
+    return {
+      userId: membership.userId,
+      role: membership.role as PropertyRole,
+      canShare: membership.canShare,
+      status: membership.status as "ACTIVE" | "PENDING" | "REVOKED",
+    };
+  }
 
-  return {
-    userId: membership.userId,
-    role: membership.role as PropertyRole,
-    canShare: membership.canShare,
-    status: membership.status as "ACTIVE" | "PENDING" | "REVOKED",
-  };
+  // Fallback to legacy system (propertyShares)
+  const [legacyShare] = await db
+    .select()
+    .from(propertyShares)
+    .where(
+      and(
+        eq(propertyShares.sharedWithUserId, userId),
+        eq(propertyShares.propertyId, propertyId),
+        eq(propertyShares.status, "accepted")
+      )
+    )
+    .limit(1);
+
+  if (legacyShare) {
+    // Map legacy permission to new role
+    const role: PropertyRole = legacyShare.permission === "edit" ? "EDITOR" : "VIEWER";
+    return {
+      userId: userId,
+      role: role,
+      canShare: false, // Legacy shares don't have canShare
+      status: "ACTIVE" as const,
+    };
+  }
+
+  return null;
 }
 
 /**
  * Check if user can read a property
+ * 
+ * HYBRID APPROACH: Checks BOTH systems for backward compatibility.
+ * 
  * @param userId - The user ID
  * @param propertyId - The property ID
- * @returns true if user has an active membership
+ * @returns true if user has an active membership (in either system)
  */
 export async function canReadProperty(
   userId: string,
   propertyId: string
 ): Promise<boolean> {
+  // Check new system
   const membership = await getUserPropertyRole(userId, propertyId);
-  return membership !== null && membership.status === "ACTIVE";
+  if (membership !== null && membership.status === "ACTIVE") {
+    return true;
+  }
+
+  // Also check legacy system directly as backup
+  const [legacyShare] = await db
+    .select()
+    .from(propertyShares)
+    .where(
+      and(
+        eq(propertyShares.sharedWithUserId, userId),
+        eq(propertyShares.propertyId, propertyId),
+        eq(propertyShares.status, "accepted")
+      )
+    )
+    .limit(1);
+
+  return !!legacyShare;
 }
 
 /**

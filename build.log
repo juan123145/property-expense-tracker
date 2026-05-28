@@ -1,0 +1,65 @@
+
+> property-expense-tracker@0.1.0 build
+> next build
+
+▲ Next.js 16.2.6 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 14.8s
+  Running TypeScript ...
+  Finished TypeScript in 8.4s ...
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/34) ...
+  Generating static pages using 11 workers (8/34) 
+  Generating static pages using 11 workers (16/34) 
+  Generating static pages using 11 workers (25/34) 
+✓ Generating static pages using 11 workers (34/34) in 617ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /admin
+├ ƒ /api/admin/fix-memberships
+├ ƒ /api/admin/fix-storage-attribution
+├ ƒ /api/admin/set-property-owner
+├ ƒ /api/auth/[...nextauth]
+├ ƒ /api/cron/purge-trash
+├ ƒ /api/file/[...path]
+├ ƒ /api/jobs/process-deletions
+├ ƒ /api/ocr
+├ ƒ /api/reports/receipt-bundle
+├ ƒ /api/transactions
+├ ƒ /api/transactions/[id]/attachments
+├ ƒ /api/transactions/paginated
+├ ƒ /api/transactions/trash
+├ ƒ /api/upload
+├ ƒ /dashboard
+├ ƒ /invite/[token]
+├ ○ /login
+├ ○ /manifest.webmanifest
+├ ƒ /needs-review
+├ ƒ /onboarding
+├ ƒ /properties
+├ ƒ /properties/[id]
+├ ƒ /properties/[id]/manage-access
+├ ƒ /reports
+├ ƒ /reports/annual-summary
+├ ƒ /reports/by-property
+├ ƒ /reports/cpa-summary
+├ ƒ /reports/expense-summary
+├ ƒ /reports/monthly-breakdown
+├ ƒ /reports/receipt-bundle
+├ ƒ /settings
+├ ƒ /settings/storage-breakdown
+├ ○ /test
+├ ƒ /transactions
+└ ƒ /trash
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

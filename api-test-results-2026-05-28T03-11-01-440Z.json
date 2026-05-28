@@ -1,0 +1,134 @@
+{
+  "timestamp": "2026-05-28T03:11:01.440Z",
+  "summary": {
+    "total": 13,
+    "passed": 12,
+    "failed": 1
+  },
+  "tests": [
+    {
+      "timestamp": "2026-05-28T03:10:59.501Z",
+      "test": "GET /api/transactions",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "message": "Valid response (expected: 200 or 401 or 403)"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:59.517Z",
+      "test": "GET /api/transactions - Response parseable",
+      "passed": true,
+      "details": {
+        "message": "Response format: text/html; charset=utf-8",
+        "size": 32075
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:59.649Z",
+      "test": "GET /api/transactions/paginated",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "message": "Valid response (expected: 200 or 401 or 403)"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:59.661Z",
+      "test": "GET /api/transactions/paginated - Response parseable",
+      "passed": true,
+      "details": {
+        "message": "Response format: text/html; charset=utf-8",
+        "size": 32075
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:59.783Z",
+      "test": "GET /api/transactions/trash",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "message": "Valid response (expected: 200 or 401 or 403)"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:59.792Z",
+      "test": "GET /api/transactions/trash - Response parseable",
+      "passed": true,
+      "details": {
+        "message": "Response format: text/html; charset=utf-8",
+        "size": 32075
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:59.901Z",
+      "test": "GET /api/properties",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "message": "Valid response (expected: 200 or 401 or 403)"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:59.911Z",
+      "test": "GET /api/properties - Response parseable",
+      "passed": true,
+      "details": {
+        "message": "Response format: text/html; charset=utf-8",
+        "size": 32075
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:10:59.997Z",
+      "test": "GET /api/reports",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "message": "Valid response (expected: 200 or 401 or 403)"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:11:00.005Z",
+      "test": "GET /api/reports - Response parseable",
+      "passed": true,
+      "details": {
+        "message": "Response format: text/html; charset=utf-8",
+        "size": 32075
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:11:01.022Z",
+      "test": "POST /api/auth/signin",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "message": "Valid response (expected: 200 or 401 or 405)"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:11:01.029Z",
+      "test": "POST /api/auth/signin - Response parseable",
+      "passed": true,
+      "details": {
+        "message": "Response format: text/html; charset=utf-8",
+        "size": 32069
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:11:01.439Z",
+      "test": "GET /api/auth/callback/google",
+      "passed": false,
+      "details": {
+        "status": 500,
+        "contentType": "text/html",
+        "message": "Unexpected status (expected: 307 or 302 or 400)"
+      }
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useEffect, useTransition, useRef, useCallback } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Plus, Paperclip, CheckCircle2, AlertTriangle, MoreHorizontal,
   Pencil, Trash2, Receipt, Search, X, SlidersHorizontal,
@@ -33,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DateRangePicker, type DateRangeValue, DATE_RANGE_ALL } from "@/components/ui/date-range-picker";
+import type { DatePreset } from "@/lib/date-ranges";
 import { AddTransactionSheet, type TransactionFormData } from "@/components/transactions/add-transaction-sheet";
 import { DeleteTransactionDialog, useDeleteDialog } from "@/components/transactions/delete-transaction-button";
 import { AttachmentViewer } from "@/components/transactions/attachment-viewer";
@@ -84,6 +86,9 @@ type Props = {
   properties: Property[];
   allUnits: Unit[];
   userId: string;
+  totalCount: number;
+  currentPage: number;
+  currentPageSize: number;
 };
 
 type Tab = "all" | "needs-review" | "trash";
@@ -236,7 +241,7 @@ function TransactionCard({
   );
 }
 
-// ─── Filter state ─────────────────────────────────────────────────────────────
+// ─── Filter state (local mode only) ──────────────────────────────────────────
 
 type FilterState = {
   search: string;
@@ -484,6 +489,406 @@ function TrashTab({ transactions }: { transactions: TrashedRow[] }) {
   );
 }
 
+// ─── Transaction table body (shared between both modes) ───────────────────────
+
+function TransactionTableRows({
+  transactions,
+  onEdit,
+  onDelete,
+  setViewerTx,
+}: {
+  transactions: TransactionRow[];
+  onEdit: (tx: TransactionRow) => void;
+  onDelete: (id: string) => void;
+  setViewerTx: (tx: TransactionRow | null) => void;
+}) {
+  return (
+    <>
+      {/* Mobile: card list */}
+      <div className="md:hidden space-y-2">
+        {transactions.map((tx) => (
+          <TransactionCard key={tx.id} tx={tx} onEdit={onEdit} onDelete={onDelete} onViewAttachments={setViewerTx} />
+        ))}
+      </div>
+
+      {/* Desktop: table */}
+      <div className="hidden md:block rounded-lg border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/30">
+              <TableHead>Date</TableHead>
+              <TableHead>Payee</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Property</TableHead>
+              <TableHead>Unit</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+              <TableHead className="text-center w-10"></TableHead>
+              <TableHead className="text-center w-10"></TableHead>
+              <TableHead className="w-10"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {transactions.map((tx) => (
+              <TableRow
+                key={tx.id}
+                className={cn(
+                  "cursor-pointer",
+                  tx.needsReview
+                    ? "border-l-2 border-l-amber-400 bg-amber-50/30 hover:bg-amber-50/50 dark:bg-amber-950/10 dark:hover:bg-amber-950/20"
+                    : "hover:bg-muted/30"
+                )}
+                onClick={() => onEdit(tx)}
+              >
+                <TableCell className="text-muted-foreground text-xs">{formatDate(tx.date)}</TableCell>
+                <TableCell className="font-medium max-w-[140px] truncate">
+                  {tx.payee ?? <span className="text-muted-foreground">—</span>}
+                </TableCell>
+                <TableCell>
+                  {tx.category ? (
+                    <div className="flex flex-col gap-0.5">
+                      <Badge className={`text-xs w-fit ${getCategoryBadgeClass(tx.category)}`}>{tx.category}</Badge>
+                      {tx.subcategory && <span className="text-xs text-muted-foreground">{tx.subcategory}</span>}
+                    </div>
+                  ) : (
+                    <MissingChip label="No category" icon={AlertCircle} />
+                  )}
+                </TableCell>
+                <TableCell className="text-sm max-w-[120px] truncate">
+                  {tx.propertyName ?? <MissingAmberChip label="No property" icon={MapPin} />}
+                </TableCell>
+                <TableCell className="text-sm">
+                  {tx.unitName ?? <span className="text-muted-foreground">—</span>}
+                </TableCell>
+                <TableCell className="text-right font-medium tabular-nums">
+                  <span className={tx.type === "income" ? "text-green-600" : "text-red-600"}>
+                    {formatAmount(tx.amount, tx.type)}
+                  </span>
+                </TableCell>
+                <TableCell
+                  className="text-center"
+                  onClick={(e) => { if (tx.attachments.length > 0) { e.stopPropagation(); setViewerTx(tx); } }}
+                >
+                  {tx.attachments.length > 0 ? (
+                    <Paperclip className="size-3.5 text-primary mx-auto cursor-pointer hover:opacity-70" />
+                  ) : null}
+                </TableCell>
+                <TableCell className="text-center">
+                  {tx.needsReview
+                    ? <AlertTriangle className="size-3.5 text-amber-500 mx-auto" />
+                    : <CheckCircle2 className="size-3.5 text-green-500 mx-auto" />}
+                </TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-accent"
+                      aria-label="Row actions"
+                    >
+                      <MoreHorizontal className="size-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => onEdit(tx)}><Pencil className="size-3.5 mr-2" />Edit</DropdownMenuItem>
+                      <DropdownMenuItem variant="destructive" onClick={() => onDelete(tx.id)}><Trash2 className="size-3.5 mr-2" />Delete</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </>
+  );
+}
+
+// ─── Server-mode All Transactions tab (URL-driven, used on /transactions page) ─
+
+type ServerModeTabProps = {
+  transactions: TransactionRow[];
+  properties: Property[];
+  allUnits: Unit[];
+  onOpenAdd: () => void;
+  onEdit: (tx: TransactionRow) => void;
+  totalCount: number;
+  currentPage: number;
+  currentPageSize: number;
+};
+
+function ServerModeTab({
+  transactions,
+  properties,
+  allUnits,
+  onOpenAdd,
+  onEdit,
+  totalCount,
+  currentPage,
+  currentPageSize,
+}: ServerModeTabProps) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const { deleteId, openDelete, closeDelete } = useDeleteDialog();
+  const [viewerTx, setViewerTx] = useState<TransactionRow | null>(null);
+
+  // Derive filter state directly from URL — always in sync, no stale local copy
+  const search = searchParams.get("search") ?? "";
+  const typeFilter = (searchParams.get("type") ?? "all") as FilterState["typeFilter"];
+  const categoryFilter = searchParams.get("category") ?? "";
+  const propertyFilter = searchParams.get("propertyId") ?? "";
+  const datePreset = (searchParams.get("datePreset") ?? "all") as DatePreset;
+  const dateStart = searchParams.get("dateStart") ?? "";
+  const dateEnd = searchParams.get("dateEnd") ?? "";
+  const dateRange: DateRangeValue = { preset: datePreset, start: dateStart, end: dateEnd };
+
+  const hasActiveFilters =
+    search.trim() !== "" ||
+    typeFilter !== "all" ||
+    categoryFilter !== "" ||
+    propertyFilter !== "" ||
+    datePreset !== "all";
+
+  // Pagination math uses server-provided totalCount — not transactions.length
+  const totalPages = Math.max(1, Math.ceil(totalCount / currentPageSize));
+
+  function buildUrl(patches: Record<string, string | null>): string {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [k, v] of Object.entries(patches)) {
+      if (v === null || v === "") {
+        params.delete(k);
+      } else {
+        params.set(k, v);
+      }
+    }
+    return `/transactions?${params.toString()}`;
+  }
+
+  function pushUrl(patches: Record<string, string | null>) {
+    startTransition(() => {
+      router.push(buildUrl(patches));
+    });
+  }
+
+  // Filter changes always reset to page 1
+  function handleSearchChange(value: string) {
+    pushUrl({ search: value || null, page: null });
+  }
+
+  function handleTypeChange(value: string) {
+    pushUrl({ type: value === "all" ? null : value, page: null });
+  }
+
+  function handleCategoryChange(value: string) {
+    pushUrl({ category: value === "all" ? null : value, page: null });
+  }
+
+  function handlePropertyChange(value: string) {
+    pushUrl({ propertyId: value === "all" ? null : value, page: null });
+  }
+
+  function handleDateRangeChange(range: DateRangeValue) {
+    if (range.preset === "all") {
+      pushUrl({ datePreset: null, dateStart: null, dateEnd: null, page: null });
+    } else {
+      pushUrl({
+        datePreset: range.preset,
+        dateStart: range.start || null,
+        dateEnd: range.end || null,
+        page: null,
+      });
+    }
+  }
+
+  function handleClearFilters() {
+    pushUrl({
+      search: null, type: null, category: null, propertyId: null,
+      datePreset: null, dateStart: null, dateEnd: null, page: null,
+    });
+  }
+
+  function handlePageSizeChange(newSize: number) {
+    pushUrl({ pageSize: String(newSize), page: null });
+  }
+
+  function handleNextPage() {
+    pushUrl({ page: String(currentPage + 1) });
+  }
+
+  function handlePreviousPage() {
+    // page=1 is the default; remove param to keep URL clean
+    pushUrl({ page: currentPage <= 2 ? null : String(currentPage - 1) });
+  }
+
+  // No transactions at all (zero totalCount, no active filters)
+  if (totalCount === 0 && !hasActiveFilters) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center gap-4 border rounded-lg bg-muted/30">
+        <Receipt className="size-12 text-muted-foreground" />
+        <div>
+          <p className="font-medium">No transactions yet</p>
+          <p className="text-sm text-muted-foreground mt-1">Add your first transaction to start tracking.</p>
+        </div>
+        <Button onClick={onOpenAdd}><Plus className="size-4 mr-2" />Add Transaction</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn(isPending && "opacity-60 pointer-events-none transition-opacity")}>
+      {/* Filter bar */}
+      <div className="mb-4 space-y-2">
+        {/* Row 1: search + property */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="relative w-[220px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Search for..."
+              className="pl-8 !h-9 text-sm"
+              defaultValue={search}
+              key={search}
+              onBlur={(e) => { if (e.target.value !== search) handleSearchChange(e.target.value); }}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSearchChange((e.target as HTMLInputElement).value); }}
+            />
+          </div>
+          {properties.length > 0 && (
+            <Select value={propertyFilter || "all"} onValueChange={(v) => handlePropertyChange(v ?? "all")}>
+              <SelectTrigger className="!h-9 text-sm w-[180px] bg-background">
+                <SelectValue>
+                  {propertyFilter
+                    ? (properties.find((p) => p.id === propertyFilter)?.name ?? "All Properties")
+                    : "All Properties"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent align="start">
+                <SelectItem value="all">All Properties</SelectItem>
+                {properties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+
+        {/* Row 2: date + category + type + pageSize + clear */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <DateRangePicker
+            value={dateRange}
+            onChange={handleDateRangeChange}
+            className="!h-9 text-sm"
+          />
+          <Select value={categoryFilter || "all"} onValueChange={(v) => handleCategoryChange(v ?? "all")}>
+            <SelectTrigger className="!h-9 text-sm w-[160px] bg-background">
+              <SelectValue>
+                {categoryFilter || "All Categories"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent align="start">
+              <SelectItem value="all">All Categories</SelectItem>
+              {CATEGORIES.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={typeFilter} onValueChange={(v) => handleTypeChange(v ?? "all")}>
+            <SelectTrigger className="!h-9 text-sm w-[140px] bg-background">
+              <SelectValue>
+                {typeFilter === "income" ? "Money in" : typeFilter === "expense" ? "Money out" : "All amounts"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent align="start">
+              <SelectItem value="all">All amounts</SelectItem>
+              <SelectItem value="income">Money in</SelectItem>
+              <SelectItem value="expense">Money out</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={String(currentPageSize)} onValueChange={(v) => { if (v) handlePageSizeChange(parseInt(v)); }}>
+            <SelectTrigger className="!h-9 text-sm w-[120px] bg-background">
+              <SelectValue>{currentPageSize} per page</SelectValue>
+            </SelectTrigger>
+            <SelectContent align="start">
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <SelectItem key={size} value={String(size)}>
+                  {size} per page
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" className="!h-9 px-3 text-sm text-muted-foreground" onClick={handleClearFilters}>
+              <X className="size-3.5 mr-1" />Clear
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Filter-empty state */}
+      {transactions.length === 0 && hasActiveFilters ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center gap-3 border rounded-lg bg-muted/30">
+          <SlidersHorizontal className="size-10 text-muted-foreground" />
+          <div>
+            <p className="font-medium">No transactions match your filters</p>
+            <p className="text-sm text-muted-foreground mt-1">Try adjusting or clearing your filters.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleClearFilters}><X className="size-3.5 mr-1.5" />Clear Filters</Button>
+        </div>
+      ) : transactions.length === 0 ? (
+        // On a page beyond the data (e.g. page 5 when only 3 pages exist after filter change)
+        <div className="flex flex-col items-center justify-center py-16 text-center gap-3 border rounded-lg bg-muted/30">
+          <Receipt className="size-10 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">No transactions on this page.</p>
+        </div>
+      ) : (
+        <>
+          <TransactionTableRows
+            transactions={transactions}
+            onEdit={onEdit}
+            onDelete={openDelete}
+            setViewerTx={setViewerTx}
+          />
+
+          {/* Pagination footer */}
+          <div className="flex items-center justify-between pt-3 text-sm text-muted-foreground">
+            <span>
+              {hasActiveFilters
+                ? `${totalCount} matching transaction${totalCount !== 1 ? "s" : ""}`
+                : `${totalCount} transaction${totalCount !== 1 ? "s" : ""}`}
+              {totalPages > 1 && ` · page ${currentPage} of ${totalPages}`}
+            </span>
+            {totalPages > 1 && (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage <= 1}
+                  onClick={handlePreviousPage}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage >= totalPages}
+                  onClick={handleNextPage}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {deleteId && (
+        <DeleteTransactionDialog id={deleteId} open={!!deleteId} onOpenChange={(o) => { if (!o) closeDelete(); }} />
+      )}
+
+      {viewerTx && viewerTx.attachments.length > 0 && (
+        <AttachmentViewer
+          open={!!viewerTx}
+          onOpenChange={(o) => { if (!o) setViewerTx(null); }}
+          transactionId={viewerTx.id}
+          attachments={viewerTx.attachments}
+          onDeleted={() => setViewerTx(null)}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── All Transactions tab section ─────────────────────────────────────────────
 
 type TableSectionProps = {
@@ -494,31 +899,13 @@ type TableSectionProps = {
   onEdit: (tx: TransactionRow) => void;
 };
 
-function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onEdit }: TableSectionProps) {
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [pageData, setPageData] = useState<TransactionRow[]>(transactions);
-  const [pagination, setPagination] = useState({ total: transactions.length, totalPages: 1, pageSize: DEFAULT_PAGE_SIZE });
-  const [isLoading, setIsLoading] = useState(false);
-
+// LocalModeTab is used by TransactionsTableSection (property detail embed).
+// It manages filters with local state and applies them client-side.
+// No server-side navigation; filters do not touch the URL.
+function LocalModeTab({ transactions, properties, allUnits, onOpenAdd, onEdit }: TableSectionProps) {
   const { deleteId, openDelete, closeDelete } = useDeleteDialog();
   const [viewerTx, setViewerTx] = useState<TransactionRow | null>(null);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  function patchFilters(patch: Partial<FilterState>) {
-    setFilters((f) => ({ ...f, ...patch }));
-    setPage(0);
-  }
-  function clearFilters() {
-    setFilters(DEFAULT_FILTERS);
-    setPage(0);
-  }
-  function handlePageSizeChange(newSize: number) {
-    setPageSize(newSize);
-    setPage(0);
-  }
 
   const hasActiveFilters =
     filters.search.trim() !== "" ||
@@ -527,286 +914,139 @@ function AllTransactionsTab({ transactions, properties, allUnits, onOpenAdd, onE
     filters.propertyFilter !== "" ||
     filters.dateRange.preset !== "all";
 
-  const fetchPage = useCallback(async (pageNum: number) => {
-    // Cancel previous request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+  // Apply filters client-side
+  const filteredTransactions = useMemo(() => {
+    let result = transactions;
+    if (filters.search.trim()) {
+      const q = filters.search.toLowerCase();
+      result = result.filter(
+        (tx) =>
+          tx.payee?.toLowerCase().includes(q) ||
+          tx.notes?.toLowerCase().includes(q) ||
+          tx.category?.toLowerCase().includes(q),
+      );
     }
-
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    setIsLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page: String(pageNum),
-        pageSize: String(pageSize),
-        ...(filters.search && { search: filters.search }),
-        ...(filters.typeFilter !== "all" && { type: filters.typeFilter }),
-        ...(filters.categoryFilter && { category: filters.categoryFilter }),
-        ...(filters.propertyFilter && { property: filters.propertyFilter }),
-        ...(filters.dateRange.preset !== "all" && {
-          startDate: filters.dateRange.start,
-          endDate: filters.dateRange.end,
-        }),
-      });
-
-      const res = await fetch(`/api/transactions/paginated?${params}`, {
-        signal: controller.signal,
-      });
-
-      if (!res.ok) throw new Error("Failed to fetch");
-      const json = await res.json();
-
-      // Ignore stale responses
-      if (controller.signal.aborted) return;
-
-      setPageData(json.data);
-      setPagination(json.pagination);
-      setPage(json.pagination.page);
-    } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") return;
-      console.error("Failed to load page:", error);
-    } finally {
-      setIsLoading(false);
+    if (filters.typeFilter !== "all") {
+      result = result.filter((tx) => tx.type === filters.typeFilter);
     }
-  }, [filters, pageSize]);
+    if (filters.categoryFilter) {
+      result = result.filter((tx) => tx.category === filters.categoryFilter);
+    }
+    if (filters.propertyFilter) {
+      result = result.filter((tx) => tx.propertyId === filters.propertyFilter);
+    }
+    if (filters.dateRange.start && filters.dateRange.end) {
+      result = result.filter(
+        (tx) => tx.date >= filters.dateRange.start && tx.date <= filters.dateRange.end,
+      );
+    }
+    return result;
+  }, [transactions, filters]);
 
-  // Fetch whenever page or filters change
-  useEffect(() => {
-    fetchPage(page);
-  }, [page, filters, fetchPage]);
+  function patchFilters(patch: Partial<FilterState>) {
+    setFilters((f) => ({ ...f, ...patch }));
+  }
+
+  if (transactions.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center gap-4 border rounded-lg bg-muted/30">
+        <Receipt className="size-12 text-muted-foreground" />
+        <div>
+          <p className="font-medium">No transactions yet</p>
+          <p className="text-sm text-muted-foreground mt-1">Add your first transaction to start tracking.</p>
+        </div>
+        <Button onClick={onOpenAdd}><Plus className="size-4 mr-2" />Add Transaction</Button>
+      </div>
+    );
+  }
 
   return (
-    <div suppressHydrationWarning>
-      {/* Filter bar — Stessa-style: always visible, 2 rows */}
-      {transactions.length > 0 && (
-        <div className="mb-4 space-y-2">
-          {/* Row 1: search + property */}
-          <div className="flex flex-wrap gap-2 items-center">
-            <div className="relative w-[220px]">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-              <Input
-                placeholder="Search for..."
-                className="pl-8 !h-9 text-sm"
-                value={filters.search}
-                onChange={(e) => patchFilters({ search: e.target.value })}
-              />
-            </div>
-            {properties.length > 0 && (
-              <Select value={filters.propertyFilter || "all"} onValueChange={(v) => patchFilters({ propertyFilter: (v ?? "") === "all" ? "" : (v ?? "") })}>
-                <SelectTrigger className="!h-9 text-sm w-[180px] bg-background">
-                  <SelectValue>
-                    {filters.propertyFilter
-                      ? (properties.find((p) => p.id === filters.propertyFilter)?.name ?? "All Properties")
-                      : "All Properties"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent align="start">
-                  <SelectItem value="all">All Properties</SelectItem>
-                  {properties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-
-          {/* Row 2: date + category + type + pageSize + clear */}
-          <div className="flex flex-wrap gap-2 items-center">
-            <DateRangePicker
-              value={filters.dateRange}
-              onChange={(range) => patchFilters({ dateRange: range })}
-              className="!h-9 text-sm"
+    <div>
+      {/* Filter bar */}
+      <div className="mb-4 space-y-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="relative w-[220px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Search for..."
+              className="pl-8 !h-9 text-sm"
+              value={filters.search}
+              onChange={(e) => patchFilters({ search: e.target.value })}
             />
-            <Select value={filters.categoryFilter || "all"} onValueChange={(v) => patchFilters({ categoryFilter: (v ?? "") === "all" ? "" : (v ?? "") })}>
-              <SelectTrigger className="!h-9 text-sm w-[160px] bg-background">
-                <SelectValue>
-                  {filters.categoryFilter || "All Categories"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent align="start">
-                <SelectItem value="all">All Categories</SelectItem>
-                {CATEGORIES.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={filters.typeFilter} onValueChange={(v) => patchFilters({ typeFilter: (v ?? "all") as FilterState["typeFilter"] })}>
-              <SelectTrigger className="!h-9 text-sm w-[140px] bg-background">
-                <SelectValue>
-                  {filters.typeFilter === "income" ? "Money in" : filters.typeFilter === "expense" ? "Money out" : "All amounts"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent align="start">
-                <SelectItem value="all">All amounts</SelectItem>
-                <SelectItem value="income">Money in</SelectItem>
-                <SelectItem value="expense">Money out</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={String(pageSize)} onValueChange={(v) => handlePageSizeChange(parseInt(v ?? String(DEFAULT_PAGE_SIZE)))}>
-              <SelectTrigger className="!h-9 text-sm w-[120px] bg-background">
-                <SelectValue>{pageSize} per page</SelectValue>
-              </SelectTrigger>
-              <SelectContent align="start">
-                {PAGE_SIZE_OPTIONS.map((size) => (
-                  <SelectItem key={size} value={String(size)}>
-                    {size} per page
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {hasActiveFilters && (
-              <Button variant="ghost" size="sm" className="!h-9 px-3 text-sm text-muted-foreground" onClick={clearFilters}>
-                <X className="size-3.5 mr-1" />Clear
-              </Button>
-            )}
           </div>
+          {properties.length > 0 && (
+            <Select value={filters.propertyFilter || "all"} onValueChange={(v) => patchFilters({ propertyFilter: (!v || v === "all") ? "" : v })}>
+              <SelectTrigger className="!h-9 text-sm w-[180px] bg-background">
+                <SelectValue>
+                  {filters.propertyFilter
+                    ? (properties.find((p) => p.id === filters.propertyFilter)?.name ?? "All Properties")
+                    : "All Properties"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent align="start">
+                <SelectItem value="all">All Properties</SelectItem>
+                {properties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
         </div>
-      )}
+        <div className="flex flex-wrap gap-2 items-center">
+          <DateRangePicker
+            value={filters.dateRange}
+            onChange={(range) => patchFilters({ dateRange: range })}
+            className="!h-9 text-sm"
+          />
+          <Select value={filters.categoryFilter || "all"} onValueChange={(v) => patchFilters({ categoryFilter: (!v || v === "all") ? "" : v })}>
+            <SelectTrigger className="!h-9 text-sm w-[160px] bg-background">
+              <SelectValue>{filters.categoryFilter || "All Categories"}</SelectValue>
+            </SelectTrigger>
+            <SelectContent align="start">
+              <SelectItem value="all">All Categories</SelectItem>
+              {CATEGORIES.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filters.typeFilter} onValueChange={(v) => patchFilters({ typeFilter: (v ?? "all") as FilterState["typeFilter"] })}>
+            <SelectTrigger className="!h-9 text-sm w-[140px] bg-background">
+              <SelectValue>
+                {filters.typeFilter === "income" ? "Money in" : filters.typeFilter === "expense" ? "Money out" : "All amounts"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent align="start">
+              <SelectItem value="all">All amounts</SelectItem>
+              <SelectItem value="income">Money in</SelectItem>
+              <SelectItem value="expense">Money out</SelectItem>
+            </SelectContent>
+          </Select>
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" className="!h-9 px-3 text-sm text-muted-foreground" onClick={() => setFilters(DEFAULT_FILTERS)}>
+              <X className="size-3.5 mr-1" />Clear
+            </Button>
+          )}
+        </div>
+      </div>
 
-      {/* Empty / filtered-empty states */}
-      {transactions.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center gap-4 border rounded-lg bg-muted/30">
-          <Receipt className="size-12 text-muted-foreground" />
-          <div>
-            <p className="font-medium">No transactions yet</p>
-            <p className="text-sm text-muted-foreground mt-1">Add your first transaction to start tracking.</p>
-          </div>
-          <Button onClick={onOpenAdd}><Plus className="size-4 mr-2" />Add Transaction</Button>
-        </div>
-      ) : pageData.length === 0 && !isLoading ? (
+      {filteredTransactions.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center gap-3 border rounded-lg bg-muted/30">
           <SlidersHorizontal className="size-10 text-muted-foreground" />
           <div>
             <p className="font-medium">No transactions match your filters</p>
             <p className="text-sm text-muted-foreground mt-1">Try adjusting or clearing your filters.</p>
           </div>
-          <Button variant="outline" size="sm" onClick={clearFilters}><X className="size-3.5 mr-1.5" />Clear Filters</Button>
+          <Button variant="outline" size="sm" onClick={() => setFilters(DEFAULT_FILTERS)}>
+            <X className="size-3.5 mr-1.5" />Clear Filters
+          </Button>
         </div>
       ) : (
         <>
-          {/* Mobile: card list */}
-          <div className="md:hidden space-y-2">
-            {isLoading ? (
-              <TransactionsSkeleton />
-            ) : (
-              pageData.map((tx) => (
-                <TransactionCard key={tx.id} tx={tx} onEdit={onEdit} onDelete={openDelete} onViewAttachments={setViewerTx} />
-              ))
-            )}
-          </div>
-
-          {/* Desktop: table */}
-          <div className="hidden md:block rounded-lg border overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/30">
-                  <TableHead>Date</TableHead>
-                  <TableHead>Payee</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Property</TableHead>
-                  <TableHead>Unit</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-center w-10"></TableHead>
-                  <TableHead className="text-center w-10"></TableHead>
-                  <TableHead className="w-10"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="h-20 text-center">
-                      <div className="flex justify-center items-center">Loading...</div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  pageData.map((tx) => (
-                  <TableRow
-                    key={tx.id}
-                    className={cn(
-                      "cursor-pointer",
-                      tx.needsReview ? "border-l-2 border-l-amber-400 bg-amber-50/30 hover:bg-amber-50/50 dark:bg-amber-950/10 dark:hover:bg-amber-950/20" : "hover:bg-muted/30"
-                    )}
-                    onClick={() => onEdit(tx)}
-                  >
-                    <TableCell className="text-muted-foreground text-xs">{formatDate(tx.date)}</TableCell>
-                    <TableCell className="font-medium max-w-[140px] truncate">
-                      {tx.payee ?? <span className="text-muted-foreground">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      {tx.category ? (
-                        <div className="flex flex-col gap-0.5">
-                          <Badge className={`text-xs w-fit ${getCategoryBadgeClass(tx.category)}`}>{tx.category}</Badge>
-                          {tx.subcategory && <span className="text-xs text-muted-foreground">{tx.subcategory}</span>}
-                        </div>
-                      ) : (
-                        <MissingChip label="No category" icon={AlertCircle} />
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm max-w-[120px] truncate">
-                      {tx.propertyName ?? <MissingAmberChip label="No property" icon={MapPin} />}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {tx.unitName ?? <span className="text-muted-foreground">—</span>}
-                    </TableCell>
-                    <TableCell className="text-right font-medium tabular-nums">
-                      <span className={tx.type === "income" ? "text-green-600" : "text-red-600"}>
-                        {formatAmount(tx.amount, tx.type)}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-center" onClick={(e) => { if (tx.attachments.length > 0) { e.stopPropagation(); setViewerTx(tx); } }}>
-                      {tx.attachments.length > 0 ? (
-                        <Paperclip className="size-3.5 text-primary mx-auto cursor-pointer hover:opacity-70" />
-                      ) : null}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {tx.needsReview
-                        ? <AlertTriangle className="size-3.5 text-amber-500 mx-auto" />
-                        : <CheckCircle2 className="size-3.5 text-green-500 mx-auto" />}
-                    </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-accent" aria-label="Row actions">
-                          <MoreHorizontal className="size-4" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => onEdit(tx)}><Pencil className="size-3.5 mr-2" />Edit</DropdownMenuItem>
-                          <DropdownMenuItem variant="destructive" onClick={() => openDelete(tx.id)}><Trash2 className="size-3.5 mr-2" />Delete</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Pagination */}
-          <div className="flex items-center justify-between pt-3 text-sm text-muted-foreground">
-            <span>
-              {hasActiveFilters
-                ? `${pagination.total} of ${transactions.length} transactions`
-                : `${pagination.total} transaction${pagination.total !== 1 ? "s" : ""}`}
-              {pagination.totalPages > 1 && ` · page ${page + 1} of ${pagination.totalPages}`}
-            </span>
-            {pagination.totalPages > 1 && (
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page === 0 || isLoading}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= pagination.totalPages - 1 || isLoading}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            )}
+          <TransactionTableRows
+            transactions={filteredTransactions}
+            onEdit={onEdit}
+            onDelete={openDelete}
+            setViewerTx={setViewerTx}
+          />
+          <div className="pt-3 text-sm text-muted-foreground">
+            {filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? "s" : ""}
+            {hasActiveFilters && ` of ${transactions.length} total`}
           </div>
         </>
       )}
@@ -835,11 +1075,15 @@ export function TransactionsTableSection({
   properties,
   allUnits,
   showAddButton = true,
+  isSingleProperty = false,
+  defaultPageSize: _defaultPageSize,
 }: {
   transactions: TransactionRow[];
   properties: Property[];
   allUnits: Unit[];
   showAddButton?: boolean;
+  isSingleProperty?: boolean;
+  defaultPageSize?: number;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editTransaction, setEditTransaction] = useState<TransactionFormData | undefined>();
@@ -857,13 +1101,13 @@ export function TransactionsTableSection({
 
   return (
     <>
-      {showAddButton && transactions.length === 0 ? null : !showAddButton && transactions.length > 0 ? (
+      {showAddButton && transactions.length > 0 && (
         <div className="flex justify-end mb-2">
           <Button size="sm" onClick={handleOpenAdd}><Plus className="size-4 mr-1" />Add Transaction</Button>
         </div>
-      ) : null}
+      )}
 
-      <AllTransactionsTab
+      <LocalModeTab
         transactions={transactions}
         properties={properties}
         allUnits={allUnits}
@@ -885,7 +1129,16 @@ export function TransactionsTableSection({
 
 // ─── Root client component ────────────────────────────────────────────────────
 
-export function TransactionsClient({ transactions, trashedTransactions, properties, allUnits, userId }: Props) {
+export function TransactionsClient({
+  transactions,
+  trashedTransactions,
+  properties,
+  allUnits,
+  userId,
+  totalCount,
+  currentPage,
+  currentPageSize,
+}: Props) {
   const [tab, setTab] = useState<Tab>("all");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editTransaction, setEditTransaction] = useState<TransactionFormData | undefined>();
@@ -916,7 +1169,7 @@ export function TransactionsClient({ transactions, trashedTransactions, properti
         </Button>
       </div>
 
-      {/* Tab nav — Tessa-style underline tabs */}
+      {/* Tab nav */}
       <div className="flex gap-0 border-b">
         {(
           [
@@ -947,12 +1200,15 @@ export function TransactionsClient({ transactions, trashedTransactions, properti
 
       {/* Tab content */}
       {tab === "all" && (
-        <AllTransactionsTab
+        <ServerModeTab
           transactions={transactions}
           properties={properties}
           allUnits={allUnits}
           onOpenAdd={handleOpenAdd}
           onEdit={handleEdit}
+          totalCount={totalCount}
+          currentPage={currentPage}
+          currentPageSize={currentPageSize}
         />
       )}
       {tab === "needs-review" && (

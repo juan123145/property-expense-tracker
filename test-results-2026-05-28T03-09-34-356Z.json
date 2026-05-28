@@ -1,0 +1,231 @@
+{
+  "timestamp": "2026-05-28T03:09:34.356Z",
+  "environment": {
+    "baseUrl": "http://localhost:3000",
+    "nodeVersion": "v24.14.1",
+    "platform": "win32"
+  },
+  "summary": {
+    "total": 27,
+    "passed": 19,
+    "failed": 8
+  },
+  "tests": [
+    {
+      "timestamp": "2026-05-28T03:09:33.025Z",
+      "test": "Login page loads",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.026Z",
+      "test": "Login page has no errors",
+      "passed": false,
+      "details": {
+        "message": "Found: 500 Internal Server Error detected; 404 Not Found"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.026Z",
+      "test": "Login form elements present",
+      "passed": true,
+      "details": {
+        "message": "Form detected"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.200Z",
+      "test": "Dashboard page loads",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.200Z",
+      "test": "Dashboard has no errors",
+      "passed": false,
+      "details": {
+        "message": "Found: 500 Internal Server Error detected; 404 Not Found"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.200Z",
+      "test": "Dashboard has content",
+      "passed": true,
+      "details": {
+        "message": "Dashboard content detected"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.373Z",
+      "test": "Properties page loads",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.373Z",
+      "test": "Properties page has no errors",
+      "passed": false,
+      "details": {
+        "message": "Found: 500 Internal Server Error detected; 404 Not Found"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.374Z",
+      "test": "Properties page shows content",
+      "passed": true,
+      "details": {
+        "message": "Properties content detected"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.489Z",
+      "test": "Transactions page loads",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.489Z",
+      "test": "Transactions page has no errors",
+      "passed": false,
+      "details": {
+        "message": "Found: 500 Internal Server Error detected; 404 Not Found"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.489Z",
+      "test": "Pagination controls present",
+      "passed": true,
+      "details": {
+        "message": "Pagination elements detected"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.489Z",
+      "test": "Transaction data present",
+      "passed": true,
+      "details": {
+        "message": "Transaction data detected"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.578Z",
+      "test": "Reports page loads",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.578Z",
+      "test": "Reports page has no errors",
+      "passed": false,
+      "details": {
+        "message": "Found: 500 Internal Server Error detected; 404 Not Found"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.578Z",
+      "test": "Reports page shows content",
+      "passed": false,
+      "details": {
+        "message": "Limited content"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.685Z",
+      "test": "Settings page loads",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.685Z",
+      "test": "Settings page has no errors",
+      "passed": false,
+      "details": {
+        "message": "Found: 500 Internal Server Error detected; 404 Not Found"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.686Z",
+      "test": "Settings elements present",
+      "passed": false,
+      "details": {
+        "message": "Limited settings content"
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.780Z",
+      "test": "Properties API endpoint available",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.869Z",
+      "test": "Transactions API endpoint available",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:33.956Z",
+      "test": "Reports API endpoint exists",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:34.040Z",
+      "test": "Dashboard is accessible",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:34.116Z",
+      "test": "Properties page is accessible",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:34.197Z",
+      "test": "Transactions page is accessible",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:34.271Z",
+      "test": "Reports page is accessible",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "timestamp": "2026-05-28T03:09:34.355Z",
+      "test": "Settings page is accessible",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    }
+  ]
+}

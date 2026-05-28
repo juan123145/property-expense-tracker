@@ -1,10 +1,11 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useDropzone } from "react-dropzone";
-import imageCompression from "browser-image-compression";
-import { Upload, X, FileText, ImageIcon, Loader2, PlusCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useDropzone } from 'react-dropzone';
+import imageCompression from 'browser-image-compression';
+import { Upload, X, FileText, ImageIcon, Loader2, PlusCircle, AlertTriangle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { validateUpload } from '@/app/actions/quota';
 
 const ACCEPTED = {
   "image/jpeg": [".jpg", ".jpeg"],
@@ -197,6 +198,7 @@ type Props = {
   existingAttachments?: ExistingAttachment[];
   onRemoveExisting?: (id: string) => void;
   scanning?: boolean;
+  propertyId?: string | null;
 };
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -207,6 +209,7 @@ export function ReceiptUploadZone({
   existingAttachments = [],
   onRemoveExisting,
   scanning = false,
+  propertyId,
 }: Props) {
   const [compressing, setCompressing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -218,7 +221,15 @@ export function ReceiptUploadZone({
   const handleFile = useCallback(
     async (raw: File) => {
       setError(null);
-      if (raw.type.startsWith("image/")) {
+      
+      // Check quota before accepting file
+      const validation = await validateUpload(raw.size, propertyId || undefined);
+      if (!validation.allowed) {
+        setError(validation.message || 'Upload exceeds quota');
+        return;
+      }
+      
+      if (raw.type.startsWith('image/')) {
         setCompressing(true);
         compressingRef.current = true;
         try {
@@ -226,11 +237,11 @@ export function ReceiptUploadZone({
             maxSizeMB: 0.1,          // 100 KB target
             maxWidthOrHeight: 1920,
             useWebWorker: true,
-            fileType: "image/webp",  // WebP gives 25–50% better ratio than JPEG/PNG
+            fileType: 'image/webp',  // WebP gives 25–50% better ratio than JPEG/PNG
             initialQuality: 0.85,
           });
-          const webpName = raw.name.replace(/\.(jpe?g|png|gif|bmp|webp)$/i, ".webp");
-          onFilesChange([...files, new File([compressed], webpName, { type: "image/webp" })]);
+          const webpName = raw.name.replace(/\.(jpe?g|png|gif|bmp|webp)$/i, '.webp');
+          onFilesChange([...files, new File([compressed], webpName, { type: 'image/webp' })]);
         } catch {
           onFilesChange([...files, raw]);
         } finally {
@@ -242,7 +253,7 @@ export function ReceiptUploadZone({
         onFilesChange([...files, raw]);
       }
     },
-    [files, onFilesChange]
+    [files, onFilesChange, propertyId]
   );
 
   const { getRootProps, getInputProps, isDragActive, fileRejections } = useDropzone({
@@ -265,6 +276,14 @@ export function ReceiptUploadZone({
 
   return (
     <div className="space-y-3">
+
+      {/* Error banner */}
+      {error && (
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+          <AlertTriangle className="size-4 text-destructive mt-0.5 shrink-0" />
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      )}
 
       {/* Already-saved attachments */}
       {existingAttachments.map((a, i) => (

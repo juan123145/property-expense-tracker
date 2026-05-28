@@ -263,9 +263,11 @@ export default async function PropertyDetailPage({ params }: PageProps) {
         <h2 className="font-semibold mb-3">Transactions ({txList.length})</h2>
         <TransactionsTableSection
           transactions={txList}
-          properties={propertyForForm}
+          properties={[]}
           allUnits={unitsForForm}
           showAddButton={false}
+          isSingleProperty={true}
+          defaultPageSize={10}
         />
       </div>
     </div>

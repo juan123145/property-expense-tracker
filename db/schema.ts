@@ -244,3 +244,14 @@ export const softDeleteQueue = pgTable("soft_delete_queue", {
   retryCount: integer("retry_count").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
+
+export const userQuotas = pgTable("user_quotas", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: "cascade" }),
+  quotaBytes: integer("quota_bytes").notNull().default(524288000), // 500 MB default
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});

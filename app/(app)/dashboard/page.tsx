@@ -51,13 +51,12 @@ function parseDateRange(
 async function getSummary(
   userId: string,
   range: DateRange | null,
-  propertyId: string | null
+  propertyId: string | null,
+  accessiblePropertyIds: string[]
 ) {
   const periodStart = range?.start ?? monthStart();
   const periodEnd = range?.end ?? null;
   const ys = yearStart();
-
-  const accessiblePropertyIds = await getAccessiblePropertyIds(userId);
 
   const base = [
     inArray(transactions.propertyId, accessiblePropertyIds),
@@ -119,22 +118,23 @@ async function getSummary(
 async function getPropertyTotals(
   userId: string,
   range: DateRange | null,
-  filterPropertyId: string | null
+  filterPropertyId: string | null,
+  accessiblePropertyIds: string[]
 ) {
   const periodStart = range?.start ?? monthStart();
   const periodEnd = range?.end ?? null;
   const ys = yearStart();
 
-  const accessiblePropertyIds = await getAccessiblePropertyIds(userId);
-
   const propQuery = db
     .select({ id: properties.id, name: properties.name, address: properties.address, city: properties.city, state: properties.state, type: properties.type, imageUrl: properties.imageUrl })
     .from(properties)
-    .where(and(inArray(properties.id, accessiblePropertyIds), eq(properties.isArchived, false)));
+    .where(and(
+      inArray(properties.id, accessiblePropertyIds),
+      eq(properties.isArchived, false),
+      ...(filterPropertyId ? [eq(properties.id, filterPropertyId)] : [])
+    ));
 
-  const props = filterPropertyId
-    ? (await propQuery).filter((p) => p.id === filterPropertyId)
-    : await propQuery;
+  const props = await propQuery;
 
   if (props.length === 0) return [];
 
@@ -153,7 +153,7 @@ async function getPropertyTotals(
     .from(transactions)
     .where(
       and(
-        eq(transactions.userId, userId),
+        inArray(transactions.propertyId, accessiblePropertyIds),
         eq(transactions.type, "expense"),
         eq(transactions.isDeleted, false),
         sql`${transactions.date} >= ${rangeStart}::date`,
@@ -180,12 +180,11 @@ async function getPropertyTotals(
 async function getCategoryChart(
   userId: string,
   range: DateRange | null,
-  propertyId: string | null
+  propertyId: string | null,
+  accessiblePropertyIds: string[]
 ) {
   const periodStart = range?.start ?? monthStart();
   const periodEnd = range?.end ?? null;
-
-  const accessiblePropertyIds = await getAccessiblePropertyIds(userId);
 
   const base = [
     inArray(transactions.propertyId, accessiblePropertyIds),
@@ -208,8 +207,7 @@ async function getCategoryChart(
   return rows.map((r) => ({ category: r.category ?? "Uncategorized", total: parseFloat(r.total ?? "0") }));
 }
 
-async function getRecentTransactions(userId: string, propertyId: string | null) {
-  const accessiblePropertyIds = await getAccessiblePropertyIds(userId);
+async function getRecentTransactions(userId: string, propertyId: string | null, accessiblePropertyIds: string[]) {
 
   return db
     .select({ id: transactions.id, date: transactions.date, amount: transactions.amount, type: transactions.type, payee: transactions.payee, category: transactions.category, propertyName: properties.name })
@@ -242,10 +240,10 @@ export default async function DashboardPage({
   const accessiblePropertyIds = await getAccessiblePropertyIds(user.id);
 
   const [summary, propertyTotals, categoryChart, recentTxs, userProperties] = await Promise.all([
-    getSummary(user.id, range, propertyId),
-    getPropertyTotals(user.id, range, propertyId),
-    getCategoryChart(user.id, range, propertyId),
-    getRecentTransactions(user.id, propertyId),
+    getSummary(user.id, range, propertyId, accessiblePropertyIds),
+    getPropertyTotals(user.id, range, propertyId, accessiblePropertyIds),
+    getCategoryChart(user.id, range, propertyId, accessiblePropertyIds),
+    getRecentTransactions(user.id, propertyId, accessiblePropertyIds),
     db.select({ id: properties.id, name: properties.name })
       .from(properties)
       .where(and(inArray(properties.id, accessiblePropertyIds), eq(properties.isArchived, false))),
