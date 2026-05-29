@@ -5,7 +5,13 @@ import { useEffect } from "react";
 export function ServiceWorkerRegistrar() {
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+      // Unregister all old service workers first to clear stale cache
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        Promise.all(registrations.map((r) => r.unregister())).then(() => {
+          // Re-register fresh
+          navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+        });
+      });
     }
   }, []);
   return null;

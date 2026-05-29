@@ -16,13 +16,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Property Tracker",
-  description: "Track rental property expenses, receipts, and transactions",
+  title: "PropTrack",
+  description: "Track rental property expenses, receipts, and generate CPA-ready tax reports",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Property Tracker",
+    title: "PropTrack",
   },
   icons: {
     apple: "/icons/apple-touch-icon.png",
@@ -45,7 +45,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         {/* next-themes injects a script tag to prevent theme flashing, which is expected */}
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="pet-theme">
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="pet-theme" disableTransitionOnChange>
           {children}
           <Toaster richColors position="top-right" />
           <ServiceWorkerRegistrar />

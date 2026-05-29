@@ -1,4 +1,4 @@
-const CACHE = "pet-v1";
+const CACHE = "pet-v2";
 const PRECACHE = ["/offline.html"];
 
 self.addEventListener("install", (e) => {
@@ -20,22 +20,27 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
 
-  // Never intercept API routes or auth — always go to network
-  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/_next/")) {
-    if (url.pathname.startsWith("/_next/static/")) {
-      // Static JS/CSS bundles: cache-first
-      e.respondWith(
-        caches.match(e.request).then(
-          (cached) =>
-            cached ??
-            fetch(e.request).then((res) => {
-              const clone = res.clone();
-              caches.open(CACHE).then((c) => c.put(e.request, clone));
-              return res;
-            })
-        )
-      );
-    }
+  // Never intercept auth routes — always network
+  if (
+    url.pathname.startsWith("/api/auth") ||
+    url.pathname.startsWith("/api/")
+  ) {
+    return;
+  }
+
+  // Static JS/CSS/font bundles: cache-first
+  if (url.pathname.startsWith("/_next/static/")) {
+    e.respondWith(
+      caches.match(e.request).then(
+        (cached) =>
+          cached ??
+          fetch(e.request).then((res) => {
+            const clone = res.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, clone));
+            return res;
+          })
+      )
+    );
     return;
   }
 
@@ -55,11 +60,12 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // Navigation (HTML pages): network-first, offline fallback
+  // HTML page navigations: ALWAYS network-first, never serve stale HTML
+  // This prevents hydration mismatches from cached old pages
   if (e.request.mode === "navigate") {
     e.respondWith(
       fetch(e.request).catch(
-        () => caches.match(e.request) ?? caches.match("/offline.html")
+        () => caches.match("/offline.html") ?? new Response("Offline", { status: 503 })
       )
     );
     return;
