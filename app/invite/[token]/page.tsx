@@ -34,8 +34,6 @@ export default async function InvitePage({ params }: Props) {
     return <InviteResult icon="error" title="Invitation not found" message="This link is invalid or has expired. Check browser console for details." />;
   }
 
-  console.log("✅ Invitation found:", { token, status: invitation.status, propertyName: invitation.propertyName });
-
   // Check if expired
   if (invitation.status === "EXPIRED") {
     console.warn("⏰ Invitation expired:", token);
@@ -43,7 +41,6 @@ export default async function InvitePage({ params }: Props) {
   }
 
   if (invitation.status === "ACCEPTED") {
-    console.log("✅ Invitation already accepted, redirecting to property");
     redirect(`/properties/${invitation.propertyId}`);
   }
 
@@ -56,13 +53,6 @@ export default async function InvitePage({ params }: Props) {
     console.warn("❌ Invitation was canceled:", token);
     return <InviteResult icon="error" title="Invitation canceled" message="This invitation has been canceled by the property owner." />;
   }
-
-  // Show invitation details with accept/decline buttons (PENDING status)
-  console.log("📋 Showing accept/decline UI for pending invitation:", {
-    token,
-    propertyName: invitation.propertyName,
-    role: invitation.role,
-  });
 
   return (
     <InvitationClient

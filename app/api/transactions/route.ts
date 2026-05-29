@@ -3,6 +3,7 @@ import { requireAuth, getAccessiblePropertyIds } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { transactions, properties, units, transactionAttachments } from "@/db/schema";
 import { eq, and, desc, asc, inArray, or, sql, ilike, between } from "drizzle-orm";
+import { buildTransactionAccess } from "@/lib/transaction-auth";
 
 function buildFilterConditions(
   userId: string,
@@ -18,10 +19,7 @@ function buildFilterConditions(
 ) {
   const conditions: any[] = [
     eq(transactions.isDeleted, false),
-    or(
-      accessibleIds.length > 0 ? inArray(transactions.propertyId, accessibleIds) : undefined,
-      eq(transactions.userId, userId)
-    ),
+    buildTransactionAccess(userId, accessibleIds),
   ];
 
   if (filters.search.trim()) {

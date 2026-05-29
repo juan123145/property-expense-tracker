@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatBytes } from "@/lib/format";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, FileText, Image as ImageIcon, HardDrive, Eye, Trash2, AlertTriangle, X } from "lucide-react";
 import { toast } from "sonner";
 import { deleteTransactionAttachment } from "@/app/actions/transactions";
+import { QUOTA_WARNING_PCT, QUOTA_CRITICAL_PCT } from "@/lib/quota-constants";
 
 interface Transaction {
   id: string;
@@ -26,6 +28,7 @@ interface Attachment {
   sizeBytes: number | null;
   contentType: string | null;
   propertyId: string | null;
+  propertyName: string | null;
   createdAt: Date | null;
   transaction?: Transaction | null;
 }
@@ -35,9 +38,12 @@ interface StorageBreakdownClientProps {
   byType: Record<string, { count: number; totalBytes: number }>;
   usedKb: number;
   quotaKb: number;
+  totalCount: number;
+  currentPage: number;
+  currentPageSize: number;
 }
 
-const typeIcons: Record<string, React.ComponentType<any>> = {
+const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   "application/pdf": FileText,
   "image/jpeg": ImageIcon,
   "image/png": ImageIcon,
@@ -96,7 +102,7 @@ function AttachmentPreview({ url, contentType }: { url: string; contentType: str
   );
 }
 
-function DeleteAttachmentButton({ attachmentId }: { attachmentId: string }) {
+function DeleteAttachmentButton({ attachmentId, onDeleted }: { attachmentId: string; onDeleted: () => void }) {
   const [pending, startTransition] = useTransition();
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -106,8 +112,7 @@ function DeleteAttachmentButton({ attachmentId }: { attachmentId: string }) {
         await deleteTransactionAttachment(attachmentId);
         toast.success("Attachment deleted permanently.");
         setShowConfirm(false);
-        // Refresh page to show updated storage
-        setTimeout(() => window.location.reload(), 500);
+        onDeleted();
       } catch (err) {
         const message = err instanceof Error ? err.message : "Something went wrong.";
         console.error("Delete error:", err);
@@ -182,9 +187,25 @@ export function StorageBreakdownClient({
   byType,
   usedKb,
   quotaKb,
+  totalCount,
+  currentPage,
+  currentPageSize,
 }: StorageBreakdownClientProps) {
+  const router = useRouter();
   const percentUsed = (usedKb / quotaKb) * 100;
   const remainingKb = quotaKb - usedKb;
+  const totalPages = Math.max(1, Math.ceil(totalCount / currentPageSize));
+
+  function handleDeleted() {
+    router.refresh();
+  }
+
+  function pushPage(page: number) {
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("pageSize", String(currentPageSize));
+    router.push(`/settings/storage-breakdown?${params.toString()}`);
+  }
 
   return (
     <div className="space-y-6 p-6 max-w-4xl mx-auto">
@@ -215,9 +236,9 @@ export function StorageBreakdownClient({
             <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
               <div
                 className={`h-full transition-all ${
-                  percentUsed > 90
+                  percentUsed >= QUOTA_CRITICAL_PCT
                     ? "bg-red-500"
-                    : percentUsed > 70
+                    : percentUsed >= QUOTA_WARNING_PCT
                       ? "bg-yellow-500"
                       : "bg-green-500"
                 }`}
@@ -241,7 +262,7 @@ export function StorageBreakdownClient({
             {Object.entries(byType).map(([type, { count, totalBytes }]) => {
               const Icon = typeIcons[type] || HardDrive;
               const label = typeLabels[type] || type;
-              const percentage = (totalBytes / (usedKb * 1024)) * 100;
+              const percentage = usedKb > 0 ? (totalBytes / (usedKb * 1024)) * 100 : 0;
 
               return (
                 <div key={type} className="space-y-2">
@@ -262,6 +283,9 @@ export function StorageBreakdownClient({
                 </div>
               );
             })}
+            {Object.keys(byType).length === 0 && (
+              <p className="text-sm text-gray-500">No attachments</p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -271,11 +295,12 @@ export function StorageBreakdownClient({
         <CardHeader>
           <CardTitle>All Attachments</CardTitle>
           <CardDescription>
-            Showing {attachments.length} file{attachments.length !== 1 ? "s" : ""}
+            {totalCount} file{totalCount !== 1 ? "s" : ""} total
+            {totalPages > 1 && ` · page ${currentPage} of ${totalPages}`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3 max-h-[600px] overflow-y-auto">
+          <div className="space-y-3">
             {attachments.length === 0 ? (
               <p className="text-sm text-gray-500">No attachments</p>
             ) : (
@@ -286,6 +311,7 @@ export function StorageBreakdownClient({
                       <p className="font-medium truncate text-sm">{a.fileName.split("/").pop()}</p>
                       <p className="text-xs text-gray-500">
                         {a.contentType || "unknown"} • {a.createdAt?.toLocaleDateString()}
+                        {a.propertyName && <> • <span className="font-medium">{a.propertyName}</span></>}
                       </p>
                     </div>
                     <span className="text-sm font-medium text-gray-600 flex-shrink-0">
@@ -332,12 +358,39 @@ export function StorageBreakdownClient({
                   {/* Action Buttons */}
                   <div className="flex gap-2">
                     <AttachmentPreview url={a.attachmentUrl} contentType={a.contentType} />
-                    <DeleteAttachmentButton attachmentId={a.id} />
+                    <DeleteAttachmentButton attachmentId={a.id} onDeleted={handleDeleted} />
                   </div>
                 </div>
               ))
             )}
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4 border-t mt-4">
+              <span className="text-sm text-muted-foreground">
+                {totalCount} attachments · page {currentPage} of {totalPages}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage <= 1}
+                  onClick={() => pushPage(currentPage - 1)}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => pushPage(currentPage + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

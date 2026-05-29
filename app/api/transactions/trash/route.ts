@@ -1,8 +1,9 @@
 import { requireAuth, getAccessiblePropertyIds } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { transactions, properties, units } from "@/db/schema";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { NextResponse, NextRequest } from "next/server";
+import { buildTransactionAccess } from "@/lib/transaction-auth";
 
 export async function GET(request: NextRequest) {
   const user = await requireAuth();
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
     .where(
       and(
         eq(transactions.isDeleted, true),
-        accessibleIds.length > 0 ? inArray(transactions.propertyId, accessibleIds) : eq(transactions.userId, user.id)
+        buildTransactionAccess(user.id, accessibleIds)
       )
     )
     .orderBy(desc(transactions.deletedAt));

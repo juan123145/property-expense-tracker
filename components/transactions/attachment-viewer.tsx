@@ -36,6 +36,7 @@ type Props = {
   transactionId: string;
   attachments: Attachment[];
   onDeleted: () => void;
+  readOnly?: boolean;
 };
 
 function formatBytes(kb: number): string {
@@ -53,6 +54,7 @@ export function AttachmentViewer({
   transactionId,
   attachments,
   onDeleted,
+  readOnly = false,
 }: Props) {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -154,36 +156,38 @@ export function AttachmentViewer({
                     : <Download className="size-3.5" />}
                   Download
                 </Button>
-                {attachments.length > 1 ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 px-3 text-xs text-destructive hover:text-destructive"
-                      onClick={handleDeleteOne}
-                    >
-                      <Trash2 className="size-3.5 mr-1" />
-                      Remove this
-                    </Button>
+                {!readOnly && (
+                  attachments.length > 1 ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-3 text-xs text-destructive hover:text-destructive"
+                        onClick={handleDeleteOne}
+                      >
+                        <Trash2 className="size-3.5 mr-1" />
+                        Remove this
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-3 text-xs text-destructive hover:text-destructive"
+                        onClick={handleDeleteAll}
+                      >
+                        Remove all
+                      </Button>
+                    </>
+                  ) : (
                     <Button
                       variant="outline"
                       size="sm"
                       className="h-8 px-3 text-xs text-destructive hover:text-destructive"
                       onClick={handleDeleteAll}
                     >
-                      Remove all
+                      <Trash2 className="size-3.5 mr-1" />
+                      Remove
                     </Button>
-                  </>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 px-3 text-xs text-destructive hover:text-destructive"
-                    onClick={handleDeleteAll}
-                  >
-                    <Trash2 className="size-3.5 mr-1" />
-                    Remove
-                  </Button>
+                  )
                 )}
               </div>
             </div>
@@ -213,7 +217,7 @@ export function AttachmentViewer({
             )}
           </SheetHeader>
 
-          <div className="flex-1 overflow-hidden bg-muted/20">
+          <div className="flex-1 overflow-hidden bg-muted/20 min-h-[400px]">
             {isPdf ? (
               <iframe
                 src={selected.url}

@@ -1,8 +1,9 @@
 import { requireAuth, getAccessiblePropertyIds } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { transactions, transactionAttachments } from "@/db/schema";
-import { eq, and, inArray, asc } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { NextResponse, NextRequest } from "next/server";
+import { buildTransactionAccess } from "@/lib/transaction-auth";
 
 export async function GET(
   request: NextRequest,
@@ -25,7 +26,7 @@ export async function GET(
       and(
         eq(transactions.id, id),
         eq(transactions.isDeleted, false),
-        accessibleIds.length > 0 ? inArray(transactions.propertyId, accessibleIds) : eq(transactions.userId, user.id)
+        buildTransactionAccess(user.id, accessibleIds)
       )
     )
     .orderBy(asc(transactionAttachments.position));

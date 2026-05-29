@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { getAccessiblePropertyIds } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { properties, propertyMemberships, transactions } from "@/db/schema";
+import { properties, propertyMemberships, transactions, transactionAttachments } from "@/db/schema";
 import { eq, and, or } from "drizzle-orm";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
@@ -63,25 +64,29 @@ export async function GET(req: NextRequest, { params }: { params: Promise<Params
     }
   }
 
-  // Transaction attachment access: user must have access to the transaction's property
+  // Transaction attachment access: look up the specific attachment and check property access
   let isTransactionAttachment = false;
   if (key.startsWith(`receipts/`) && !isUserReceipt) {
-    // For receipts folder not owned by current user, check if they have access via property membership
-    // Get all transactions accessible to this user
-    const [txMatch] = await db
-      .select({ id: transactions.id })
-      .from(transactions)
-      .innerJoin(properties, eq(transactions.propertyId, properties.id))
-      .innerJoin(propertyMemberships, and(
-        eq(properties.id, propertyMemberships.propertyId),
-        eq(propertyMemberships.userId, userId),
-        eq(propertyMemberships.status, "ACTIVE")
-      ))
-      .where(eq(transactions.isDeleted, false))
+    const attachmentUrl = `/api/file/${key}`;
+    const [attachmentMatch] = await db
+      .select({
+        propertyId: transactions.propertyId,
+        transactionUserId: transactions.userId,
+      })
+      .from(transactionAttachments)
+      .innerJoin(transactions, eq(transactionAttachments.transactionId, transactions.id))
+      .where(eq(transactionAttachments.url, attachmentUrl))
       .limit(1);
 
-    if (txMatch) {
-      isTransactionAttachment = true;
+    if (attachmentMatch) {
+      if (!attachmentMatch.propertyId) {
+        // Personal transaction: only the creator can access its files
+        isTransactionAttachment = attachmentMatch.transactionUserId === userId;
+      } else {
+        // Property transaction: check current active property access
+        const accessibleIds = await getAccessiblePropertyIds(userId);
+        isTransactionAttachment = accessibleIds.includes(attachmentMatch.propertyId);
+      }
     }
   }
 

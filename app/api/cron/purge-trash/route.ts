@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { transactions, transactionAttachments } from "@/db/schema";
-import { eq, and, lt, isNotNull } from "drizzle-orm";
+import { transactions, transactionAttachments, storageOwnerships } from "@/db/schema";
+import { eq, and, lt, isNotNull, inArray } from "drizzle-orm";
 import { deleteFromR2 } from "@/lib/r2";
 
 export async function GET(request: Request) {
@@ -28,15 +28,20 @@ export async function GET(request: Request) {
 
   const ids = toDelete.map((r) => r.id);
 
-  // Delete R2 files for each transaction
+  // For each transaction, clean up R2 files and quota records
   for (const id of ids) {
     const attachments = await db
       .select({ url: transactionAttachments.url })
       .from(transactionAttachments)
       .where(eq(transactionAttachments.transactionId, id));
 
-    for (const { url } of attachments) {
-      try { await deleteFromR2(url); } catch { /* non-fatal */ }
+    if (attachments.length > 0) {
+      const urls = attachments.map((a) => a.url);
+      // Delete storageOwnerships rows (frees quota) before transaction cascade
+      await db.delete(storageOwnerships).where(inArray(storageOwnerships.attachmentUrl, urls));
+      for (const { url } of attachments) {
+        try { await deleteFromR2(url); } catch { /* non-fatal, logged in deleteFromR2 */ }
+      }
     }
   }
 

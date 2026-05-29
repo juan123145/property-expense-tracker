@@ -7,6 +7,8 @@
 
 const DEFAULT_QUOTA_BYTES = 524288000; // 500 MB
 
+export { QUOTA_WARNING_PCT, QUOTA_CRITICAL_PCT } from "./quota-constants";
+
 /**
  * Get or create user quota
  */

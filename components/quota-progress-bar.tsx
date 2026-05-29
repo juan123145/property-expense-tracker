@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getUserQuotaStatus } from '@/app/actions/quota';
 import { HardDrive, AlertCircle, AlertTriangle } from 'lucide-react';
+import { QUOTA_WARNING_PCT, QUOTA_CRITICAL_PCT } from '@/lib/quota-constants';
 
 export function QuotaProgressBar() {
   const [quota, setQuota] = useState<any>(null);
@@ -51,20 +52,20 @@ export function QuotaProgressBar() {
   }
 
   const getProgressColor = (percent: number) => {
-    if (percent >= 95) return 'bg-destructive';
-    if (percent >= 80) return 'bg-amber-500';
+    if (percent >= QUOTA_CRITICAL_PCT) return 'bg-destructive';
+    if (percent >= QUOTA_WARNING_PCT) return 'bg-amber-500';
     return 'bg-green-500';
   };
 
   const getTextColor = (percent: number) => {
-    if (percent >= 95) return 'text-destructive';
-    if (percent >= 80) return 'text-amber-600';
+    if (percent >= QUOTA_CRITICAL_PCT) return 'text-destructive';
+    if (percent >= QUOTA_WARNING_PCT) return 'text-amber-600';
     return 'text-green-600';
   };
 
   const getBgColor = (percent: number) => {
-    if (percent >= 95) return 'bg-destructive/10';
-    if (percent >= 80) return 'bg-amber-50 dark:bg-amber-950/20';
+    if (percent >= QUOTA_CRITICAL_PCT) return 'bg-destructive/10';
+    if (percent >= QUOTA_WARNING_PCT) return 'bg-amber-50 dark:bg-amber-950/20';
     return 'bg-green-50 dark:bg-green-950/20';
   };
 

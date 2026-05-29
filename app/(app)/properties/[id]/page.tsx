@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { properties, units, transactions, transactionAttachments, propertyShares, propertyMemberships } from "@/db/schema";
-import { eq, and, sum, desc, asc, or } from "drizzle-orm";
+import { eq, and, sum, desc, asc, or, ilike, inArray, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight, MapPin } from "lucide-react";
@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PropertyDetailClient } from "@/components/properties/property-detail-client";
 import { PropertyShareSheet } from "@/components/properties/property-share-sheet";
-import { TransactionsTableSection } from "@/app/(app)/transactions/transactions-client";
+import { PropertyTransactionsSection } from "@/app/(app)/transactions/transactions-client";
 
 async function getProperty(id: string, userId: string) {
   // Get property and check access
@@ -66,7 +66,39 @@ async function getUnits(propertyId: string) {
   return db.select().from(units).where(eq(units.propertyId, propertyId));
 }
 
-async function getPropertyTransactions(propertyId: string, userId: string) {
+const PT_ALLOWED_PAGE_SIZES = [10, 25, 50] as const;
+const PT_DEFAULT_PAGE_SIZE = 10;
+
+type PtFilters = { search: string; type: string; category: string };
+
+function buildPtWhere(propertyId: string, f: PtFilters) {
+  const conditions: Parameters<typeof and>[0][] = [
+    eq(transactions.propertyId, propertyId),
+    eq(transactions.isDeleted, false),
+  ];
+  if (f.search.trim()) {
+    conditions.push(
+      or(
+        ilike(transactions.payee, `%${f.search}%`),
+        ilike(transactions.notes, `%${f.search}%`),
+        ilike(transactions.category, `%${f.search}%`),
+      ),
+    );
+  }
+  if (f.type && f.type !== "all") conditions.push(eq(transactions.type, f.type));
+  if (f.category) conditions.push(eq(transactions.category, f.category));
+  return and(...conditions);
+}
+
+async function countPropertyTransactions(propertyId: string, f: PtFilters): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`cast(count(*) as integer)` })
+    .from(transactions)
+    .where(buildPtWhere(propertyId, f));
+  return row?.count ?? 0;
+}
+
+async function getPropertyTransactions(propertyId: string, f: PtFilters, offset: number, pageSize: number) {
   const txRows = await db
     .select({
       id: transactions.id,
@@ -87,14 +119,14 @@ async function getPropertyTransactions(propertyId: string, userId: string) {
     .from(transactions)
     .leftJoin(properties, eq(transactions.propertyId, properties.id))
     .leftJoin(units, eq(transactions.unitId, units.id))
-    .where(
-      and(
-        eq(transactions.propertyId, propertyId),
-        eq(transactions.isDeleted, false)
-      )
-    )
-    .orderBy(desc(transactions.date), desc(transactions.createdAt));
+    .where(buildPtWhere(propertyId, f))
+    .orderBy(desc(transactions.date), desc(transactions.createdAt))
+    .limit(pageSize)
+    .offset(offset);
 
+  if (txRows.length === 0) return [];
+
+  const txIds = txRows.map((tx) => tx.id);
   const attachmentRows = await db
     .select({
       transactionId: transactionAttachments.transactionId,
@@ -104,13 +136,7 @@ async function getPropertyTransactions(propertyId: string, userId: string) {
       sizeKb: transactionAttachments.sizeKb,
     })
     .from(transactionAttachments)
-    .innerJoin(transactions, eq(transactionAttachments.transactionId, transactions.id))
-    .where(
-      and(
-        eq(transactions.propertyId, propertyId),
-        eq(transactions.isDeleted, false)
-      )
-    )
+    .where(inArray(transactionAttachments.transactionId, txIds))
     .orderBy(transactionAttachments.transactionId, asc(transactionAttachments.position));
 
   const byTxId = new Map<string, Array<{ id: string; url: string; name: string | null; sizeKb: number | null }>>();
@@ -140,20 +166,42 @@ async function getSummary(propertyId: string, userId: string) {
   return { income, expenses, net: income - expenses };
 }
 
-type PageProps = { params: Promise<{ id: string }> };
+type PageProps = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[]>>;
+};
 
-export default async function PropertyDetailPage({ params }: PageProps) {
+export default async function PropertyDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params;
+  const sp = await searchParams;
   const user = await requireAuth();
 
-  const [property, unitList, summary, txList] = await Promise.all([
+  const rawPtPageSize = parseInt(String(sp.pt_pageSize ?? ""), 10);
+  const ptPageSize: number = (PT_ALLOWED_PAGE_SIZES as readonly number[]).includes(rawPtPageSize)
+    ? rawPtPageSize
+    : PT_DEFAULT_PAGE_SIZE;
+
+  const ptFilters: PtFilters = {
+    search: String(sp.pt_search ?? "").trim(),
+    type: String(sp.pt_type ?? "all"),
+    category: String(sp.pt_category ?? ""),
+  };
+
+  const [property, unitList, summary, txCount] = await Promise.all([
     getProperty(id, user.id),
     getUnits(id),
     getSummary(id, user.id),
-    getPropertyTransactions(id, user.id),
+    countPropertyTransactions(id, ptFilters),
   ]);
 
   if (!property) notFound();
+
+  const ptTotalPages = Math.max(1, Math.ceil(txCount / ptPageSize));
+  const rawPtPage = parseInt(String(sp.pt_page ?? "1"), 10);
+  const ptPage = Math.min(Math.max(1, isNaN(rawPtPage) ? 1 : rawPtPage), ptTotalPages);
+  const ptOffset = (ptPage - 1) * ptPageSize;
+
+  const txList = await getPropertyTransactions(id, ptFilters, ptOffset, ptPageSize);
 
   const isOwner = property.userId === user.id || property.ownerId === user.id;
   const userRole = property.role || (isOwner ? "OWNER" : undefined);
@@ -260,14 +308,14 @@ export default async function PropertyDetailPage({ params }: PageProps) {
 
       {/* Transactions */}
       <div>
-        <h2 className="font-semibold mb-3">Transactions ({txList.length})</h2>
-        <TransactionsTableSection
+        <h2 className="font-semibold mb-3">Transactions ({txCount})</h2>
+        <PropertyTransactionsSection
           transactions={txList}
-          properties={[]}
+          properties={propertyForForm}
           allUnits={unitsForForm}
-          showAddButton={false}
-          isSingleProperty={true}
-          defaultPageSize={10}
+          totalCount={txCount}
+          currentPage={ptPage}
+          currentPageSize={ptPageSize}
         />
       </div>
     </div>

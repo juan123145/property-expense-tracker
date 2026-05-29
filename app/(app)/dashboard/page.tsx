@@ -2,6 +2,7 @@ import { requireAuth, getAccessiblePropertyIds } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { transactions, properties } from "@/db/schema";
 import { eq, and, sql, desc, count, isNotNull, inArray } from "drizzle-orm";
+import { buildTransactionAccess } from "@/lib/transaction-auth";
 import { DashboardClient } from "./dashboard-client";
 import { getPresetRange, presetDisplayLabel, type DatePreset } from "@/lib/date-ranges";
 
@@ -101,7 +102,7 @@ async function getSummary(
 
     db.select({ value: count() })
       .from(transactions)
-      .where(and(eq(transactions.userId, userId), eq(transactions.needsReview, true), eq(transactions.isDeleted, false))),
+      .where(and(buildTransactionAccess(userId, accessiblePropertyIds), eq(transactions.needsReview, true), eq(transactions.isDeleted, false))),
   ]);
 
   return {

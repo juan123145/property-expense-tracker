@@ -303,11 +303,21 @@ export async function updateTransaction(_prev: unknown, formData: FormData) {
 
         // Update all storage ownership records for this transaction's attachments
         for (const { url } of attachmentUrls) {
+          let resolvedOwnerId = newOwnerId;
+          if (!newPropertyIdRaw) {
+            // Reverting to no property: revert to the original uploader, not the current editor
+            const [record] = await db
+              .select({ uploadedByUserId: storageOwnerships.uploadedByUserId })
+              .from(storageOwnerships)
+              .where(eq(storageOwnerships.attachmentUrl, url))
+              .limit(1);
+            if (record) resolvedOwnerId = record.uploadedByUserId;
+          }
           await db
             .update(storageOwnerships)
             .set({
               propertyId: finalPropertyId,
-              ownerId: newOwnerId,
+              ownerId: resolvedOwnerId,
             })
             .where(eq(storageOwnerships.attachmentUrl, url));
         }

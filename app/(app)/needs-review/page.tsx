@@ -1,10 +1,11 @@
-import { requireAuth } from "@/lib/auth-utils";
+import { requireAuth, getAccessiblePropertyIds } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { transactions, properties, units, transactionAttachments } from "@/db/schema";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, and, desc, asc, inArray } from "drizzle-orm";
 import { NeedsReviewClient } from "./needs-review-client";
+import { buildTransactionAccess } from "@/lib/transaction-auth";
 
-async function getNeedsReviewTransactions(userId: string) {
+async function getNeedsReviewTransactions(userId: string, accessibleIds: string[]) {
   return db
     .select({
       id: transactions.id,
@@ -27,7 +28,7 @@ async function getNeedsReviewTransactions(userId: string) {
     .leftJoin(units, eq(transactions.unitId, units.id))
     .where(
       and(
-        eq(transactions.userId, userId),
+        buildTransactionAccess(userId, accessibleIds),
         eq(transactions.needsReview, true),
         eq(transactions.isDeleted, false)
       )
@@ -35,7 +36,7 @@ async function getNeedsReviewTransactions(userId: string) {
     .orderBy(desc(transactions.date), desc(transactions.createdAt));
 }
 
-async function getAttachments(userId: string) {
+async function getAttachments(userId: string, accessibleIds: string[]) {
   return db
     .select({
       transactionId: transactionAttachments.transactionId,
@@ -48,7 +49,7 @@ async function getAttachments(userId: string) {
     .innerJoin(transactions, eq(transactionAttachments.transactionId, transactions.id))
     .where(
       and(
-        eq(transactions.userId, userId),
+        buildTransactionAccess(userId, accessibleIds),
         eq(transactions.needsReview, true),
         eq(transactions.isDeleted, false)
       )
@@ -56,29 +57,32 @@ async function getAttachments(userId: string) {
     .orderBy(transactionAttachments.transactionId, asc(transactionAttachments.position));
 }
 
-async function getProperties(userId: string) {
+async function getProperties(accessibleIds: string[]) {
+  if (accessibleIds.length === 0) return [];
   return db
     .select({ id: properties.id, name: properties.name })
     .from(properties)
-    .where(and(eq(properties.userId, userId), eq(properties.isArchived, false)));
+    .where(and(inArray(properties.id, accessibleIds), eq(properties.isArchived, false)));
 }
 
-async function getAllUnits(userId: string) {
+async function getAllUnits(accessibleIds: string[]) {
+  if (accessibleIds.length === 0) return [];
   return db
     .select({ id: units.id, propertyId: units.propertyId, name: units.name })
     .from(units)
     .innerJoin(properties, eq(units.propertyId, properties.id))
-    .where(eq(properties.userId, userId));
+    .where(inArray(properties.id, accessibleIds));
 }
 
 export default async function NeedsReviewPage() {
   const user = await requireAuth();
+  const accessibleIds = await getAccessiblePropertyIds(user.id);
 
   const [txRows, attachmentRows, propList, unitList] = await Promise.all([
-    getNeedsReviewTransactions(user.id),
-    getAttachments(user.id),
-    getProperties(user.id),
-    getAllUnits(user.id),
+    getNeedsReviewTransactions(user.id, accessibleIds),
+    getAttachments(user.id, accessibleIds),
+    getProperties(accessibleIds),
+    getAllUnits(accessibleIds),
   ]);
 
   const attachmentsByTxId = new Map<

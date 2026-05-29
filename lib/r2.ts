@@ -64,10 +64,15 @@ export async function deleteFromR2(urlOrKey: string): Promise<void> {
     key = urlOrKey;
   }
 
-  await r2.send(
-    new DeleteObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME!,
-      Key: key,
-    })
-  );
+  try {
+    await r2.send(
+      new DeleteObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME!,
+        Key: key,
+      })
+    );
+  } catch (err) {
+    console.error("[R2] deleteFromR2 failed for key:", key, err);
+    throw err;
+  }
 }
